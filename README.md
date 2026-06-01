@@ -53,6 +53,10 @@ git push origin v0.1.0
 
 工作流会构建 Windows 安装包，以及 macOS Intel / Apple Silicon `.app` 压缩包，并上传到对应 GitHub Release。
 
+### 开源协议
+
+本项目基于 MIT License 开源，详见 [LICENSE](LICENSE)。
+
 ## English
 
 Markdown Reader is a local desktop reader built with Tauri, React, and TypeScript. It helps you read, edit, and preview Markdown articles on desktop, especially for WeChat Official Account, Xiaohongshu, and other long-form content workflows.
@@ -105,3 +109,7 @@ git push origin v0.1.0
 ```
 
 The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives, then uploads them to the matching GitHub Release.
+
+### License
+
+This project is open-sourced under the MIT License. See [LICENSE](LICENSE).
