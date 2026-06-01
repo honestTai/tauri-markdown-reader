@@ -1,15 +1,42 @@
-name: Package Tauri app
+name: Package and Release Tauri app
 
 on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  package-windows:
-    name: Package Windows app
-    runs-on: windows-latest
+  package:
+    name: Package ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            artifact-name: markdown-reader-windows-x64
+            bundle-path: |
+              src-tauri/target/release/bundle/**/*.exe
+              src-tauri/target/release/bundle/**/*.msi
+          - name: macOS Intel
+            os: macos-13
+            artifact-name: markdown-reader-macos-intel
+            bundle-path: |
+              src-tauri/target/release/bundle/**/*.dmg
+              src-tauri/target/release/bundle/**/*.app.tar.gz
+          - name: macOS Apple Silicon
+            os: macos-latest
+            artifact-name: markdown-reader-macos-apple-silicon
+            bundle-path: |
+              src-tauri/target/release/bundle/**/*.dmg
+              src-tauri/target/release/bundle/**/*.app.tar.gz
 
     steps:
       - name: Check out repository
@@ -30,11 +57,61 @@ jobs:
       - name: Build Tauri bundle
         run: npm run tauri:build
 
-      - name: Upload Windows bundle
+      - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
-          name: markdown-reader-windows
-          path: |
-            src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.msi
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.bundle-path }}
           if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download packaged bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          ## 中文
+
+          Markdown Reader 桌面安装包。
+
+          - Windows x64: `.exe` 和 `.msi`
+          - macOS Intel: `.dmg`
+          - macOS Apple Silicon: `.dmg`
+
+          macOS 版本未做 Apple 签名和公证时，首次打开可能需要在 Finder 中右键应用并选择“打开”。
+
+          ## English
+
+          Markdown Reader desktop installers.
+
+          - Windows x64: `.exe` and `.msi`
+          - macOS Intel: `.dmg`
+          - macOS Apple Silicon: `.dmg`
+
+          If the macOS build is not Apple-signed or notarized, first launch may require right-clicking the app in Finder and choosing "Open".
+          NOTES
+
+          mapfile -t assets < <(find release-assets -type f | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets found."
+            exit 1
+          fi
+
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Markdown Reader $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --latest
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "Markdown Reader $GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --latest
+          fi

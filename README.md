@@ -1,73 +1,107 @@
-# React + TypeScript + Vite
+# Markdown Reader / Markdown 本地阅读器
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 中文
 
-Currently, two official plugins are available:
+Markdown Reader 是一个基于 Tauri、React 和 TypeScript 的本地桌面阅读器，用来在电脑上阅读、编辑和预览 Markdown 文章。它特别适合公众号、小红书或其他长文内容的本地整理流程。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 功能
 
-## React Compiler
+- 打开本地 Markdown 文件夹并自动扫描文章。
+- 提供电脑阅读、公众号宽度、源码和编辑视图。
+- 支持富文本编辑器，异常时会回退到 Markdown 源码编辑。
+- 可复制或保存公众号 HTML。
+- 自动检查标题、摘要、图片和正文结构。
+- GitHub Actions 自动打包 Windows 和 macOS 版本。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 下载
 
-## Expanding the ESLint configuration
+发布版本会上传到 GitHub Releases：
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+[下载最新版本](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+当前自动构建目标：
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Windows x64：`.exe` 和 `.msi`
+- macOS Intel：`.dmg`
+- macOS Apple Silicon：`.dmg`
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+macOS 版本未做 Apple 签名和公证时，首次打开可能需要在 Finder 中右键应用并选择“打开”。
+
+### 本地开发
+
+```bash
+npm ci
+npm run tauri:dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 本地构建
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run tauri:build
 ```
+
+Windows 本地构建需要 Rust/Cargo 和 Microsoft C++ Build Tools。macOS 本地构建需要 Rust/Cargo、Xcode Command Line Tools，以及 macOS 系统环境。
+
+### 发布
+
+推送 `v*` 标签会触发 Release：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+工作流会构建 Windows、macOS Intel 和 macOS Apple Silicon 安装包，并上传到对应 GitHub Release。
+
+## English
+
+Markdown Reader is a local desktop reader built with Tauri, React, and TypeScript. It helps you read, edit, and preview Markdown articles on desktop, especially for WeChat Official Account, Xiaohongshu, and other long-form content workflows.
+
+### Features
+
+- Open a local Markdown folder and scan articles automatically.
+- Switch between desktop reading, WeChat-width preview, source, and editing views.
+- Use a rich Markdown editor with a source editor fallback.
+- Copy or save WeChat-ready HTML.
+- Check title, digest, images, and article structure.
+- Package Windows and macOS builds automatically with GitHub Actions.
+
+### Download
+
+Release builds are published on GitHub Releases:
+
+[Download the latest release](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
+
+Current build targets:
+
+- Windows x64: `.exe` and `.msi`
+- macOS Intel: `.dmg`
+- macOS Apple Silicon: `.dmg`
+
+If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
+
+### Local Development
+
+```bash
+npm ci
+npm run tauri:dev
+```
+
+### Local Build
+
+```bash
+npm run tauri:build
+```
+
+Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local macOS builds require Rust/Cargo, Xcode Command Line Tools, and a macOS environment.
+
+### Release
+
+Push a `v*` tag to create a GitHub Release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow builds Windows, macOS Intel, and macOS Apple Silicon installers, then uploads them to the matching GitHub Release.
