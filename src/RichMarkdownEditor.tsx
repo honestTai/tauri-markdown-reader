@@ -1,8 +1,11 @@
+import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,
   CodeToggle,
+  type CodeBlockEditorDescriptor,
+  type CodeBlockEditorProps,
   CreateLink,
   InsertCodeBlock,
   InsertImage,
@@ -23,8 +26,47 @@ import {
   tablePlugin,
   thematicBreakPlugin,
   toolbarPlugin,
+  useCodeBlockEditorContext,
 } from '@mdxeditor/editor'
 import '@mdxeditor/editor/style.css'
+
+function PlainCodeBlockEditor({ code, language, focusEmitter }: CodeBlockEditorProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const { setCode } = useCodeBlockEditorContext()
+
+  useEffect(() => {
+    focusEmitter.subscribe(() => textareaRef.current?.focus())
+  }, [focusEmitter])
+
+  return (
+    <div className="plain-code-block-editor">
+      <div className="plain-code-block-editor-bar">{language || 'text'}</div>
+      <textarea
+        ref={textareaRef}
+        value={code}
+        onChange={(event) => setCode(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab') return
+          event.preventDefault()
+          const target = event.currentTarget
+          const start = target.selectionStart
+          const end = target.selectionEnd
+          setCode(`${code.slice(0, start)}\t${code.slice(end)}`)
+          requestAnimationFrame(() => {
+            target.setSelectionRange(start + 1, start + 1)
+          })
+        }}
+        spellCheck={false}
+      />
+    </div>
+  )
+}
+
+const plainCodeBlockEditorDescriptor: CodeBlockEditorDescriptor = {
+  priority: 1,
+  match: () => true,
+  Editor: PlainCodeBlockEditor,
+}
 
 const richEditorPlugins = [
   frontmatterPlugin(),
@@ -36,7 +78,10 @@ const richEditorPlugins = [
   linkDialogPlugin(),
   imagePlugin(),
   tablePlugin(),
-  codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
+  codeBlockPlugin({
+    defaultCodeBlockLanguage: 'text',
+    codeBlockEditorDescriptors: [plainCodeBlockEditorDescriptor],
+  }),
   markdownShortcutPlugin(),
   toolbarPlugin({
     toolbarContents: () => (
