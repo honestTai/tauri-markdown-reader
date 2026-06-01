@@ -22,21 +22,27 @@ jobs:
           - name: Windows x64
             os: windows-latest
             artifact-name: markdown-reader-windows-x64
+            archive-macos: "false"
+            build-command: npm run tauri:build
             bundle-path: |
               src-tauri/target/release/bundle/**/*.exe
               src-tauri/target/release/bundle/**/*.msi
           - name: macOS Intel
             os: macos-15-intel
             artifact-name: markdown-reader-macos-intel
+            archive-macos: "true"
+            archive-suffix: macos-intel
+            build-command: npm run tauri:build -- --bundles app --no-sign
             bundle-path: |
-              src-tauri/target/release/bundle/**/*.dmg
-              src-tauri/target/release/bundle/**/*.app.tar.gz
+              macos-bundle/*.tar.gz
           - name: macOS Apple Silicon
             os: macos-latest
             artifact-name: markdown-reader-macos-apple-silicon
+            archive-macos: "true"
+            archive-suffix: macos-apple-silicon
+            build-command: npm run tauri:build -- --bundles app --no-sign
             bundle-path: |
-              src-tauri/target/release/bundle/**/*.dmg
-              src-tauri/target/release/bundle/**/*.app.tar.gz
+              macos-bundle/*.tar.gz
 
     steps:
       - name: Check out repository
@@ -55,7 +61,21 @@ jobs:
         run: npm ci
 
       - name: Build Tauri bundle
-        run: npm run tauri:build
+        run: ${{ matrix.build-command }}
+
+      - name: Archive macOS app
+        if: matrix.archive-macos == 'true'
+        shell: bash
+        run: |
+          app_path=$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name "*.app" -type d | head -n 1)
+          if [ -z "$app_path" ]; then
+            echo "No macOS .app bundle found."
+            exit 1
+          fi
+
+          mkdir -p macos-bundle
+          version="${GITHUB_REF_NAME#v}"
+          tar -czf "macos-bundle/Markdown-Reader_${version}_${{ matrix.archive-suffix }}.app.tar.gz" -C "$(dirname "$app_path")" "$(basename "$app_path")"
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
@@ -87,8 +107,8 @@ jobs:
           Markdown Reader 桌面安装包。
 
           - Windows x64: `.exe` 和 `.msi`
-          - macOS Intel: `.dmg`
-          - macOS Apple Silicon: `.dmg`
+          - macOS Intel: `.app.tar.gz`
+          - macOS Apple Silicon: `.app.tar.gz`
 
           macOS 版本未做 Apple 签名和公证时，首次打开可能需要在 Finder 中右键应用并选择“打开”。
 
@@ -97,8 +117,8 @@ jobs:
           Markdown Reader desktop installers.
 
           - Windows x64: `.exe` and `.msi`
-          - macOS Intel: `.dmg`
-          - macOS Apple Silicon: `.dmg`
+          - macOS Intel: `.app.tar.gz`
+          - macOS Apple Silicon: `.app.tar.gz`
 
           If the macOS build is not Apple-signed or notarized, first launch may require right-clicking the app in Finder and choosing "Open".
           NOTES
