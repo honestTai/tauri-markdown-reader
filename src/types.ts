@@ -17,16 +17,51 @@ export interface ArticlePayload {
   preview_content: string
 }
 
-export type PanelTab = 'wechat' | 'checks'
+export type PanelTab = 'outline' | 'exports'
 
-export type ReadMode = 'desktop' | 'wechat' | 'source' | 'edit'
+export type ReadMode = 'desktop' | 'source' | 'edit'
 
-export type FocusPreviewMode = 'desktop' | 'wechat'
+export type MarkdownThemeId = 'green' | 'ink' | 'warm'
+
+export type CodeBlockStyleId = 'border' | 'mac' | 'plain'
+
+export type WordStyleId =
+  | 'codex'
+  | 'clean'
+  | 'serif'
+  | 'song'
+  | 'hei'
+  | 'yahei'
+  | 'kai'
+  | 'mono'
+  | 'report'
+  | 'book'
+  | 'compact'
+  | 'presentation'
+
+export interface WechatRenderOptions {
+  theme: MarkdownThemeId
+  codeStyle: CodeBlockStyleId
+}
 
 export interface ParsedArticle {
   title: string
   digest: string
   body: string
+}
+
+export interface OutlineItem {
+  id: string
+  level: number
+  text: string
+}
+
+export interface ArticleStats {
+  words: number
+  headings: number
+  images: number
+  codeBlocks: number
+  readingMinutes: number
 }
 
 export interface CheckItem {

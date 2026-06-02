@@ -5,7 +5,9 @@ use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
+    process::Command,
     time::UNIX_EPOCH,
 };
 
@@ -34,9 +36,50 @@ struct SaveArticleRequest {
     content: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveBinaryExportRequest {
+    article_path: String,
+    content_base64: String,
+    extension: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewMarkdownRequest {
+    article_path: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InsertImageAssetRequest {
+    article_path: String,
+    image_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InsertImageAssetResponse {
+    markdown: String,
+    relative_path: String,
+}
+
 #[tauri::command]
 fn scan_workspace(workspace: String) -> Result<Vec<ArticleSummary>, String> {
-    let root = normalize_workspace_root(PathBuf::from(workspace));
+    let input = PathBuf::from(workspace);
+    if input.is_file() {
+        if !is_markdown_file(&input) {
+            return Err("请选择 Markdown 文件。".to_string());
+        }
+        let parent = input
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "无法识别 Markdown 文件所在目录".to_string())?;
+        return scan_workspace(parent.to_string_lossy().to_string());
+    }
+
+    let root = normalize_workspace_root(input);
     let groups = [
         ("articles/drafts", "草稿", "draft"),
         ("articles/wemd-inbox", "WeMD 审稿", "inbox"),
@@ -86,6 +129,78 @@ fn save_article(request: SaveArticleRequest) -> Result<ArticlePayload, String> {
 }
 
 #[tauri::command]
+fn preview_markdown_content(request: PreviewMarkdownRequest) -> Result<String, String> {
+    let article_path = PathBuf::from(&request.article_path);
+    let base_dir = article_path
+        .parent()
+        .ok_or_else(|| "无法识别文章目录".to_string())?
+        .to_path_buf();
+    inline_local_images(&request.content, &base_dir)
+}
+
+#[tauri::command]
+fn insert_image_asset(request: InsertImageAssetRequest) -> Result<InsertImageAssetResponse, String> {
+    let article = PathBuf::from(&request.article_path);
+    if !is_markdown_file(&article) {
+        return Err("请先打开一个 Markdown 文件。".to_string());
+    }
+
+    let source = PathBuf::from(&request.image_path);
+    if !source.is_file() {
+        return Err("请选择有效的图片文件。".to_string());
+    }
+
+    let extension = source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .ok_or_else(|| "图片文件缺少扩展名。".to_string())?;
+    if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg") {
+        return Err("仅支持 png、jpg、jpeg、gif、webp、svg 图片。".to_string());
+    }
+
+    let article_parent = article
+        .parent()
+        .ok_or_else(|| "无法识别文章目录".to_string())?;
+    let article_stem = article
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .map(sanitize_asset_segment)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "article".to_string());
+    let assets_dir_name = format!("{article_stem}-assets");
+    let assets_dir = article_parent.join(&assets_dir_name);
+    fs::create_dir_all(&assets_dir).map_err(to_err)?;
+
+    let image_stem = source
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .map(sanitize_asset_segment)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "image".to_string());
+    let alt = source
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("image")
+        .to_string();
+    let mut file_name = format!("{image_stem}.{extension}");
+    let mut output = assets_dir.join(&file_name);
+    let mut index = 1;
+    while output.exists() {
+        file_name = format!("{image_stem}-{index}.{extension}");
+        output = assets_dir.join(&file_name);
+        index += 1;
+    }
+
+    fs::copy(&source, &output).map_err(to_err)?;
+    let relative_path = format!("{assets_dir_name}/{file_name}");
+    Ok(InsertImageAssetResponse {
+        markdown: format!("![{alt}]({relative_path})"),
+        relative_path,
+    })
+}
+
+#[tauri::command]
 fn append_build_log(entry: String) -> Result<(), String> {
     let log_path = project_root().join("docs").join("BUILD_LOG.md");
     if let Some(parent) = log_path.parent() {
@@ -122,6 +237,68 @@ fn save_wechat_html(article_path: String, html: String) -> Result<String, String
         fs::create_dir_all(parent).map_err(to_err)?;
     }
     fs::write(&output, html).map_err(to_err)?;
+    open_path(&output)?;
+    Ok(output.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn save_reading_html(article_path: String, html: String) -> Result<String, String> {
+    let article = PathBuf::from(article_path);
+    let slug = article
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "无法识别文章 slug".to_string())?;
+    let root = workspace_root_for_article(&article)?;
+    let output = root
+        .join("exports")
+        .join("reading-html")
+        .join(format!("{slug}.html"));
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent).map_err(to_err)?;
+    }
+    fs::write(&output, html).map_err(to_err)?;
+    open_path(&output)?;
+    Ok(output.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn read_binary_file(path: String) -> Result<String, String> {
+    let bytes = fs::read(PathBuf::from(path)).map_err(to_err)?;
+    Ok(general_purpose::STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+fn save_binary_export(request: SaveBinaryExportRequest) -> Result<String, String> {
+    let extension = request
+        .extension
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+    if !["docx", "pdf"].contains(&extension.as_str()) {
+        return Err("暂不支持该导出格式。".to_string());
+    }
+
+    let article = PathBuf::from(request.article_path);
+    let slug = article
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "无法识别文章 slug".to_string())?;
+    let root = workspace_root_for_article(&article)?;
+    let folder = match extension.as_str() {
+        "pdf" => "pdf",
+        _ => "word",
+    };
+    let output = root
+        .join("exports")
+        .join(folder)
+        .join(format!("{slug}.{extension}"));
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent).map_err(to_err)?;
+    }
+    let bytes = general_purpose::STANDARD
+        .decode(request.content_base64)
+        .map_err(to_err)?;
+    fs::write(&output, bytes).map_err(to_err)?;
+    open_path(&output)?;
     Ok(output.to_string_lossy().to_string())
 }
 
@@ -132,8 +309,13 @@ fn main() {
             scan_workspace,
             read_article,
             save_article,
+            preview_markdown_content,
+            insert_image_asset,
             append_build_log,
-            save_wechat_html
+            save_wechat_html,
+            save_reading_html,
+            read_binary_file,
+            save_binary_export
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -238,6 +420,30 @@ fn project_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn open_path(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let status = {
+        let target = path.to_string_lossy().to_string();
+        Command::new("cmd")
+            .args(["/C", "start", ""])
+            .arg(target)
+            .status()
+            .map_err(to_err)?
+    };
+
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(path).status().map_err(to_err)?;
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(path).status().map_err(to_err)?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("文件已生成，但打开失败：{}", path.to_string_lossy()))
+    }
+}
+
 fn to_err<E: std::fmt::Display>(error: E) -> String {
     error.to_string()
 }
@@ -286,41 +492,55 @@ fn collect_markdown_files(
             collect_markdown_files(&path, group, status, recursive, articles)?;
             continue;
         }
-        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+        if !is_markdown_file(&path) {
             continue;
         }
-        let raw = fs::read_to_string(&path).unwrap_or_default();
-        let (title, digest) = parse_frontmatter(&raw);
-        let metadata = fs::metadata(&path).map_err(to_err)?;
-        let updated = metadata
-            .modified()
-            .ok()
-            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-            .map(|duration| duration.as_secs())
-            .unwrap_or_default();
-
-        articles.push(ArticleSummary {
-            path: path.to_string_lossy().to_string(),
-            file_name: path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default()
-                .to_string(),
-            title: if title.is_empty() {
-                path.file_stem()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or_default()
-                    .to_string()
-            } else {
-                title
-            },
-            digest,
-            group: group.to_string(),
-            status: status.to_string(),
-            updated,
-        });
+        articles.push(summarize_markdown_file(&path, group, status)?);
     }
     Ok(())
+}
+
+fn summarize_markdown_file(path: &Path, group: &str, status: &str) -> Result<ArticleSummary, String> {
+    let raw = fs::read_to_string(path).unwrap_or_default();
+    let (title, digest) = parse_frontmatter(&raw);
+    let metadata = fs::metadata(path).map_err(to_err)?;
+    let updated = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+
+    Ok(ArticleSummary {
+        path: path.to_string_lossy().to_string(),
+        file_name: path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        title: if title.is_empty() {
+            path.file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            title
+        },
+        digest,
+        group: group.to_string(),
+        status: status.to_string(),
+        updated,
+    })
+}
+
+fn is_markdown_file(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_ascii_lowercase())
+            .as_deref(),
+        Some("md" | "markdown" | "mdown")
+    )
 }
 
 fn should_enter_dir(path: &Path) -> bool {
@@ -331,7 +551,31 @@ fn should_enter_dir(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
-use std::io::Write;
+fn sanitize_asset_segment(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut last_was_dash = false;
+    for ch in value.chars() {
+        let next = if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch > '\u{7f}' {
+            Some(ch)
+        } else if ch.is_whitespace() || ch == '.' {
+            Some('-')
+        } else {
+            None
+        };
+        if let Some(ch) = next {
+            if ch == '-' {
+                if last_was_dash {
+                    continue;
+                }
+                last_was_dash = true;
+            } else {
+                last_was_dash = false;
+            }
+            output.push(ch);
+        }
+    }
+    output.trim_matches('-').to_string()
+}
 
 #[cfg(test)]
 mod tests {
@@ -406,5 +650,73 @@ mod tests {
         })
         .expect("save article");
         assert!(payload.content.contains("新正文"));
+    }
+
+    #[test]
+    fn opens_single_markdown_file_as_workspace() {
+        let root = std::env::temp_dir().join("tauri-reader-single-md");
+        fs::create_dir_all(&root).expect("create single root");
+        let article_path = root.join("single.md");
+        let sibling_path = root.join("sibling.md");
+        fs::write(&article_path, "---\ntitle: 单文件\n---\n\n正文").expect("write single");
+        fs::write(&sibling_path, "---\ntitle: 同目录\n---\n\n正文").expect("write sibling");
+
+        let articles =
+            scan_workspace(article_path.to_string_lossy().to_string()).expect("scan single file");
+
+        assert_eq!(articles.len(), 2);
+        assert!(articles.iter().all(|article| article.status == "document"));
+        assert!(articles.iter().any(|article| article.title == "单文件"));
+        assert!(articles.iter().any(|article| article.title == "同目录"));
+    }
+
+    #[test]
+    fn inserts_image_asset_next_to_article() {
+        let root = std::env::temp_dir().join(format!(
+            "tauri-reader-image-insert-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        let article_path = root.join("note.md");
+        let image_path = root.join("source image.png");
+        fs::write(&article_path, "# Note").expect("write article");
+        fs::write(&image_path, [0x89, 0x50, 0x4e, 0x47]).expect("write image");
+
+        let inserted = insert_image_asset(InsertImageAssetRequest {
+            article_path: article_path.to_string_lossy().to_string(),
+            image_path: image_path.to_string_lossy().to_string(),
+        })
+        .expect("insert image");
+
+        assert_eq!(inserted.relative_path, "note-assets/source-image.png");
+        assert_eq!(inserted.markdown, "![source image](note-assets/source-image.png)");
+        assert!(root.join("note-assets").join("source-image.png").exists());
+    }
+
+    #[test]
+    fn previews_edited_markdown_with_local_images_inlined() {
+        let root = std::env::temp_dir().join(format!(
+            "tauri-reader-preview-images-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let assets = root.join("note-assets");
+        fs::create_dir_all(&assets).expect("create assets");
+        let article_path = root.join("note.md");
+        fs::write(&article_path, "# Note").expect("write article");
+        fs::write(assets.join("image.png"), [0x89, 0x50, 0x4e, 0x47]).expect("write image");
+
+        let preview = preview_markdown_content(PreviewMarkdownRequest {
+            article_path: article_path.to_string_lossy().to_string(),
+            content: "![image](note-assets/image.png)".to_string(),
+        })
+        .expect("preview markdown");
+
+        assert!(preview.contains("data:image/png;base64,"));
     }
 }

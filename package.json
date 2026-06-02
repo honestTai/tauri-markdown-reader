@@ -1,7 +1,7 @@
 {
   "name": "tauri-markdown-reader",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -14,9 +14,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mdxeditor/editor": "^4.0.1",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
+    "docx": "^9.7.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.17.0",
     "marked": "^18.0.4",
     "react": "^19.2.6",

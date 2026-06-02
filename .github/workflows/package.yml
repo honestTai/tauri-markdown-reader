@@ -104,7 +104,18 @@ jobs:
           cat > RELEASE_NOTES.md <<'NOTES'
           ## 中文
 
-          Markdown Reader 桌面安装包。
+          Markdown Reader v0.1.2 是一个偏产品化的本地 Markdown 阅读、编辑和导出版本。
+
+          ### 新增与改进
+
+          - 大纲条目支持点击跳转到对应标题。
+          - 编辑器支持插入本地图片，并复制到文章旁边的 assets 文件夹。
+          - Word 和 PDF 导出支持图片。
+          - PDF 导出内置中文字体，不依赖用户电脑额外安装字体。
+          - Word、PDF、HTML 导出完成后会自动打开文件。
+          - Markdown 样式选择会实时影响阅读预览和 Word/PDF 导出。
+          - 导出面板精简为 Word/PDF 主操作，HTML 输出放到高级区域。
+          - 移除公众号宽度阅读 tab，让界面更接近清爽桌面阅读器。
 
           - Windows x64: `.exe` 和 `.msi`
           - macOS Intel: `.app.tar.gz`
@@ -114,7 +125,18 @@ jobs:
 
           ## English
 
-          Markdown Reader desktop installers.
+          Markdown Reader v0.1.2 is a more product-ready local Markdown reader, editor, and exporter.
+
+          ### Added and changed
+
+          - Click outline entries to jump to headings.
+          - Insert local images into article-adjacent assets folders.
+          - Export images in Word and PDF files.
+          - Use a bundled Chinese font for PDF export.
+          - Open exported Word, PDF, and HTML files automatically.
+          - Apply Markdown style presets to both preview and Word/PDF export.
+          - Keep Word/PDF as primary export actions and move HTML output into an advanced section.
+          - Remove the WeChat-width reading tab for a cleaner desktop reading experience.
 
           - Windows x64: `.exe` and `.msi`
           - macOS Intel: `.app.tar.gz`

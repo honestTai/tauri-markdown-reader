@@ -1,76 +1,50 @@
-# Markdown Reader / Markdown 本地阅读器
+# Markdown Reader
 
-## 中文
+Local-first Markdown reader and exporter built with Tauri, React, and TypeScript.
 
-Markdown Reader 是一个基于 Tauri、React 和 TypeScript 的本地桌面阅读器，用来在电脑上阅读、编辑和预览 Markdown 文章。它特别适合公众号、小红书或其他长文内容的本地整理流程。
+Markdown Reader is designed for people who write long Markdown articles with screenshots, outlines, and delivery files. It focuses on a small desktop workflow: open a Markdown file or folder, read it comfortably, edit the source, manage local images, then export Word/PDF/HTML without asking users to install extra converters.
 
-### 功能
+## Why It Is Different
 
-- 打开本地 Markdown 文件夹并自动扫描文章。
-- 提供电脑阅读、公众号宽度、源码和编辑视图。
-- 支持富文本编辑器，异常时会回退到 Markdown 源码编辑。
-- 可复制或保存公众号 HTML。
-- 自动检查标题、摘要、图片和正文结构。
-- GitHub Actions 自动打包 Windows 和 macOS 版本。
+- Local Markdown files stay as normal files. Images are copied into a sibling `<article>-assets/` folder and inserted as relative Markdown paths.
+- Outline navigation is part of the reading surface. Click a heading in the right panel to jump to that section.
+- Export is intentionally quiet. Word and PDF are the primary actions; HTML output stays in an advanced section.
+- Word/PDF export is bundled in the app. It does not rely on Pandoc, LaTeX, Microsoft Word, or external tools on the user's computer.
+- Markdown styles are visible before export. Switching a style updates the reading preview and the exported Word/PDF typography.
 
-### 下载
+## New In v0.1.2
 
-发布版本会上传到 GitHub Releases：
+- Added one-click outline navigation.
+- Added local image insertion for Markdown editing.
+- Added image support in Word and PDF exports.
+- Added bundled Chinese PDF font support.
+- Added automatic opening after exporting Word, PDF, and HTML files.
+- Added Markdown style presets with live preview updates.
+- Simplified the export panel so Word/PDF are primary and HTML is secondary.
+- Removed the WeChat-width reading tab and kept the interface closer to a clean desktop reader.
+- Removed fragile rich-editor loading and switched editing to a stable Markdown source editor.
 
-[下载最新版本](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
+## 中文摘要
 
-当前自动构建目标：
+Markdown Reader 是一个本地优先的 Markdown 桌面阅读、编辑和导出工具。它适合写长文、教程、产品说明或带大量截图的 Markdown 文档。
 
-- Windows x64：`.exe` 和 `.msi`
-- macOS Intel：`.app.tar.gz`
-- macOS Apple Silicon：`.app.tar.gz`
+v0.1.2 新增了大纲点击跳转、本地图片插入、Word/PDF 图片导出、导出后自动打开文件，以及 10 多种 Markdown 样式的实时预览。现在导出区只把 Word/PDF 作为主操作，HTML 放到高级输出里，整体更像一个简单清爽的开源桌面工具。
 
-macOS 版本未做 Apple 签名和公证时，首次打开可能需要在 Finder 中右键应用并选择“打开”。
+## Features
 
-### 本地开发
+- Open a Markdown folder or a single Markdown file.
+- Scan workflow folders such as `articles/drafts`, `articles/wemd-inbox`, and `articles/approved`.
+- Read Markdown in a wide desktop layout.
+- Edit Markdown source with save support.
+- Insert local images into article-adjacent assets folders.
+- Click outline entries to jump to headings.
+- Export Word `.docx` with headings, lists, code, styles, and images.
+- Export PDF with bundled font support and images.
+- Copy Markdown.
+- Copy or save reading HTML and WeChat-ready HTML from the advanced export section.
+- Automatically open exported files after saving.
 
-```bash
-npm ci
-npm run tauri:dev
-```
-
-### 本地构建
-
-```bash
-npm run tauri:build
-```
-
-Windows 本地构建需要 Rust/Cargo 和 Microsoft C++ Build Tools。macOS 本地构建需要 Rust/Cargo、Xcode Command Line Tools，以及 macOS 系统环境。
-
-### 发布
-
-推送 `v*` 标签会触发 Release：
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-工作流会构建 Windows 安装包，以及 macOS Intel / Apple Silicon `.app` 压缩包，并上传到对应 GitHub Release。
-
-### 开源协议
-
-本项目基于 MIT License 开源，详见 [LICENSE](LICENSE)。
-
-## English
-
-Markdown Reader is a local desktop reader built with Tauri, React, and TypeScript. It helps you read, edit, and preview Markdown articles on desktop, especially for WeChat Official Account, Xiaohongshu, and other long-form content workflows.
-
-### Features
-
-- Open a local Markdown folder and scan articles automatically.
-- Switch between desktop reading, WeChat-width preview, source, and editing views.
-- Use a rich Markdown editor with a source editor fallback.
-- Copy or save WeChat-ready HTML.
-- Check title, digest, images, and article structure.
-- Package Windows and macOS builds automatically with GitHub Actions.
-
-### Download
+## Download
 
 Release builds are published on GitHub Releases:
 
@@ -84,14 +58,14 @@ Current build targets:
 
 If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
 
-### Local Development
+## Local Development
 
 ```bash
 npm ci
 npm run tauri:dev
 ```
 
-### Local Build
+## Local Build
 
 ```bash
 npm run tauri:build
@@ -99,17 +73,30 @@ npm run tauri:build
 
 Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local macOS builds require Rust/Cargo, Xcode Command Line Tools, and a macOS environment.
 
-### Release
+## Release
 
 Push a `v*` tag to create a GitHub Release:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin main v0.1.2
 ```
 
 The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives, then uploads them to the matching GitHub Release.
 
-### License
+## Visibility Notes
+
+If the project has no stars or forks yet, that does not necessarily mean the product idea is weak. For small open-source desktop tools, discovery usually depends on:
+
+- a clear screenshot or GIF in the README;
+- an obvious "why this instead of MarkText/Zettlr/Joplin" section;
+- release assets that are easy to install;
+- topic tags such as `markdown`, `tauri`, `desktop-app`, `pdf-export`, `docx`, `local-first`;
+- short examples showing image insertion and Word/PDF export results;
+- posts on GitHub, X/Twitter, Reddit, Hacker News, V2EX, or developer communities.
+
+The current differentiator is local-first Markdown writing with asset folders and bundled Word/PDF export. A short demo GIF would likely help more than adding another feature right now.
+
+## License
 
 This project is open-sourced under the MIT License. See [LICENSE](LICENSE).
