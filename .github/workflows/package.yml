@@ -56,13 +56,15 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set up pnpm
+        run: npm install -g pnpm@10.24.0
+
       - name: Install dependencies
         env:
-          NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
+          PNPM_HOME: ${{ runner.temp }}/pnpm
         run: |
-          npm --version
-          npm cache verify
-          npm ci --no-audit --no-fund
+          pnpm --version
+          pnpm install --frozen-lockfile
 
       - name: Build Tauri bundle
         run: ${{ matrix.build-command }}
