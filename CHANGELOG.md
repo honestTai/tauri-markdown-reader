@@ -5,7 +5,7 @@
 ### Added
 
 - Chinese / English UI switching for operation buttons, panels, style labels, and common notices.
-- Public README screenshots for both Chinese and English UI.
+- README screenshots for both Chinese and English UI.
 - English names for all Markdown style presets.
 
 ### Changed

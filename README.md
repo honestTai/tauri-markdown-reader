@@ -27,7 +27,7 @@ If this saves you from another converter setup, a star helps more people find it
 ## New In v0.1.3
 
 - Added Chinese and English UI switching for operation buttons, panels, style labels, and common notices.
-- Added public README screenshots for Chinese and English UI.
+- Added README screenshots for Chinese and English UI.
 - Added English names for the Markdown style presets.
 - Kept Markdown content untouched when switching the app language.
 
@@ -47,7 +47,7 @@ If this saves you from another converter setup, a star helps more people find it
 
 Markdown Reader 是一个本地优先的 Markdown 桌面阅读、编辑和导出工具。它适合写长文、教程、产品说明或带大量截图的 Markdown 文档。
 
-v0.1.3 新增了中英文界面切换和公开版 README 截图；v0.1.2 已经支持大纲点击跳转、本地图片插入、Word/PDF 图片导出、导出后自动打开文件，以及 10 多种 Markdown 样式的实时预览。现在导出区只把 Word/PDF 作为主操作，HTML 放到高级输出里，整体更像一个简单清爽的开源桌面工具。
+v0.1.3 新增了中英文界面切换和 README 产品截图；v0.1.2 已经支持大纲点击跳转、本地图片插入、Word/PDF 图片导出、导出后自动打开文件，以及 10 多种 Markdown 样式的实时预览。现在导出区只把 Word/PDF 作为主操作，HTML 放到高级输出里，整体更像一个简单清爽的开源桌面工具。
 
 ## Features
 

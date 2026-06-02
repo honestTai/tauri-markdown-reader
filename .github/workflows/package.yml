@@ -51,17 +51,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-
-      - name: Use stable npm
-        run: npm install -g npm@10
+          node-version: 20
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: npm ci
+        env:
+          NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
+        run: |
+          npm --version
+          npm cache verify
+          npm ci --no-audit --no-fund
 
       - name: Build Tauri bundle
         run: ${{ matrix.build-command }}
@@ -112,7 +113,7 @@ jobs:
           ### 新增与改进
 
           - 新增中英文界面切换，覆盖操作按钮、右侧面板、样式选择和常见提示。
-          - README 新增中文 / 英文两张公开版截图，方便快速了解产品界面。
+          - README 新增中文 / 英文两张产品截图，方便快速了解界面。
           - Markdown 样式预设补充英文名称，英文界面下展示更自然。
           - 继续保留本地优先工作流：打开文件夹或单个 Markdown 文件、插入本地图片、大纲跳转、Word/PDF/HTML 导出。
           - Word 和 PDF 导出继续支持图片，并内置中文 PDF 字体，不依赖用户额外安装转换器。
@@ -130,7 +131,7 @@ jobs:
           ### Added and changed
 
           - Add Chinese / English UI switching for operation buttons, panels, style labels, and common notices.
-          - Add public README screenshots for both Chinese and English UI.
+          - Add README screenshots for both Chinese and English UI.
           - Add English names for Markdown style presets.
           - Keep the local-first workflow: open a folder or one Markdown file, insert local images, use outline navigation, and export Word/PDF/HTML.
           - Keep image support in Word/PDF exports and bundled Chinese PDF font support without requiring external converters.
