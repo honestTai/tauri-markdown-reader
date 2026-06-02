@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.3 - 2026-06-02
+
+### Added
+
+- Chinese / English UI switching for operation buttons, panels, style labels, and common notices.
+- Public README screenshots for both Chinese and English UI.
+- English names for all Markdown style presets.
+
+### Changed
+
+- Refined the language switcher into a compact toolbar control instead of a large segmented button.
+- Reworked the README opening sections to make the local-first Word/PDF export value clearer for new visitors.
+
 ## v0.1.2 - 2026-06-02
 
 ### Added

@@ -74,6 +74,7 @@
 }
 
 .icon-button,
+.language-button,
 .command-button,
 .reader-tabs button,
 .panel-tabs button,
@@ -96,6 +97,18 @@
 .icon-button {
   width: 36px;
   padding: 0;
+}
+
+.language-button {
+  min-width: 52px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.language-button span {
+  min-width: 18px;
+  text-align: center;
 }
 
 .icon-button.is-active {

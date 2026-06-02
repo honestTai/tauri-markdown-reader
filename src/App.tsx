@@ -7,6 +7,7 @@ import {
   FileText,
   FolderOpen,
   Image as ImageIcon,
+  Languages,
   ListTree,
   Maximize2,
   Minimize2,
@@ -111,6 +112,188 @@ interface InsertImageAssetResponse {
   relativePath: string
 }
 
+const uiText = {
+  zh: {
+    brandSubtitle: '本地多平台预览',
+    languageToggleAria: '界面语言',
+    switchLanguageTitle: '切换到 English',
+    workspaceAria: '工作区路径',
+    workspacePlaceholder: '选择或输入 Markdown 文件夹 / 文件',
+    collapseDocs: '收起文档栏',
+    expandDocs: '展开文档栏',
+    collapsePanel: '收起平台栏',
+    expandPanel: '展开平台栏',
+    focusMode: '专注模式',
+    exitFocus: '退出专注模式',
+    openFolder: '打开目录',
+    openMarkdownFile: '打开 Markdown 文件',
+    quickOpen: '快速打开',
+    refresh: '刷新',
+    saveMarkdown: '保存 MD',
+    documents: '文档',
+    searchPlaceholder: '搜索标题或文件',
+    noArticlesInPath: '当前路径没有找到文章。',
+    chooseWorkspaceOrFileFirst: '先选择 Markdown 文件夹或文件。',
+    chooseFolder: '选择目录',
+    chooseFile: '选择文件',
+    desktopReading: '电脑阅读',
+    source: '原文',
+    edit: '编辑',
+    unsaved: '未保存',
+    loading: '正在加载...',
+    dirty: '有未保存修改',
+    saved: '已保存',
+    noOpenedDoc: '未打开文档',
+    chooseLeftDoc: '选择左侧 Markdown 文档开始预览。',
+    chooseMarkdownDoc: '请选择一个 Markdown 文件夹或文件。',
+    outline: '大纲',
+    export: '导出',
+    selectMarkdownDoc: '请选择一个 Markdown 文档。',
+    livePreview: '实时预览',
+    previewWillUpdate: '预览会在右侧实时更新。',
+    startTypingPreview: '开始输入 Markdown，右侧会实时渲染。',
+    wordCount: '字数',
+    reading: '阅读',
+    images: '图片',
+    codeBlocks: '代码块',
+    noOutline: '当前文档还没有标题层级。',
+    markdownStyle: 'Markdown 样式',
+    wordDescription: '保留标题、段落和列表',
+    pdfDescription: '生成干净阅读版',
+    copyMarkdown: '复制 Markdown',
+    htmlOutput: 'HTML 输出',
+    collapse: '收起',
+    expand: '展开',
+    readingVersion: '阅读版',
+    wechat: '公众号',
+    copy: '复制',
+    save: '保存',
+    quickOpenPlaceholder: '快速打开 Markdown',
+    noMatches: '没有匹配的文档。',
+    insertImage: '图片',
+    insertImageTitle: '插入图片',
+    launchFailed: 'Markdown Reader 启动失败',
+    runtimeFailed: '前端运行时出现异常。',
+    choosePathFirst: '请先选择或输入 Markdown 文件夹 / 文件。',
+    loadFailed: '加载失败',
+    readFailed: '读取失败',
+    browserNoDir: '浏览器预览模式下不能打开本地目录。',
+    browserNoFile: '浏览器预览模式下不能打开本地文件。',
+    workspaceDialogTitle: '选择文章工作区',
+    markdownDialogTitle: '选择 Markdown 文件',
+    copiedWechatHtml: '已复制公众号 HTML',
+    noUnsavedChanges: '当前没有未保存修改。',
+    browserDemoUpdated: '浏览器预览模式已更新示例内容。',
+    markdownSaved: 'Markdown 已保存',
+    browserCopyOnlyHtml: '浏览器预览模式下仅支持复制 HTML。',
+    generatedOpenedHtml: '已生成并打开 HTML',
+    copiedMarkdown: '已复制 Markdown',
+    copiedReadingHtml: '已复制阅读 HTML',
+    generatedOpenedReadingHtml: '已生成并打开阅读 HTML',
+    browserDownloadedWord: '浏览器预览模式已下载 Word。',
+    generatedOpenedWord: '已生成并打开 Word',
+    wordExportFailed: 'Word 导出失败',
+    browserDownloadedPdf: '浏览器预览模式已下载 PDF。',
+    generatedOpenedPdf: '已生成并打开 PDF',
+    pdfExportFailed: 'PDF 导出失败',
+    openMarkdownFirst: '请先打开一个 Markdown 文件。',
+    browserNoLocalImage: '浏览器预览模式下不能插入本地图片。',
+    insertedImage: '已插入图片',
+    insertImageFailed: '插入图片失败',
+  },
+  en: {
+    brandSubtitle: 'Local multi-platform preview',
+    languageToggleAria: 'Interface language',
+    switchLanguageTitle: 'Switch to Chinese',
+    workspaceAria: 'Workspace path',
+    workspacePlaceholder: 'Choose or enter a Markdown folder / file',
+    collapseDocs: 'Collapse documents',
+    expandDocs: 'Expand documents',
+    collapsePanel: 'Collapse panel',
+    expandPanel: 'Expand panel',
+    focusMode: 'Focus mode',
+    exitFocus: 'Exit focus mode',
+    openFolder: 'Open folder',
+    openMarkdownFile: 'Open Markdown file',
+    quickOpen: 'Quick open',
+    refresh: 'Refresh',
+    saveMarkdown: 'Save MD',
+    documents: 'Documents',
+    searchPlaceholder: 'Search title or file',
+    noArticlesInPath: 'No Markdown articles found in this path.',
+    chooseWorkspaceOrFileFirst: 'Choose a Markdown folder or file first.',
+    chooseFolder: 'Choose folder',
+    chooseFile: 'Choose file',
+    desktopReading: 'Desktop',
+    source: 'Source',
+    edit: 'Edit',
+    unsaved: 'Unsaved',
+    loading: 'Loading...',
+    dirty: 'Unsaved changes',
+    saved: 'Saved',
+    noOpenedDoc: 'No document open',
+    chooseLeftDoc: 'Choose a Markdown document from the left.',
+    chooseMarkdownDoc: 'Choose a Markdown folder or file.',
+    outline: 'Outline',
+    export: 'Export',
+    selectMarkdownDoc: 'Choose a Markdown document.',
+    livePreview: 'Live preview',
+    previewWillUpdate: 'The preview updates here as you edit.',
+    startTypingPreview: 'Start typing Markdown to render the preview.',
+    wordCount: 'Words',
+    reading: 'Read',
+    images: 'Images',
+    codeBlocks: 'Code blocks',
+    noOutline: 'This document has no heading structure yet.',
+    markdownStyle: 'Markdown style',
+    wordDescription: 'Keep headings, paragraphs, and lists',
+    pdfDescription: 'Create a clean reading version',
+    copyMarkdown: 'Copy Markdown',
+    htmlOutput: 'HTML output',
+    collapse: 'Collapse',
+    expand: 'Expand',
+    readingVersion: 'Reading',
+    wechat: 'WeChat',
+    copy: 'Copy',
+    save: 'Save',
+    quickOpenPlaceholder: 'Quick open Markdown',
+    noMatches: 'No matching documents.',
+    insertImage: 'Image',
+    insertImageTitle: 'Insert image',
+    launchFailed: 'Markdown Reader failed to start',
+    runtimeFailed: 'The frontend hit a runtime error.',
+    choosePathFirst: 'Choose or enter a Markdown folder / file first.',
+    loadFailed: 'Load failed',
+    readFailed: 'Read failed',
+    browserNoDir: 'Local folders cannot be opened in browser preview mode.',
+    browserNoFile: 'Local files cannot be opened in browser preview mode.',
+    workspaceDialogTitle: 'Choose article workspace',
+    markdownDialogTitle: 'Choose Markdown file',
+    copiedWechatHtml: 'WeChat HTML copied',
+    noUnsavedChanges: 'There are no unsaved changes.',
+    browserDemoUpdated: 'Demo content updated in browser preview mode.',
+    markdownSaved: 'Markdown saved',
+    browserCopyOnlyHtml: 'Browser preview mode only supports copying HTML.',
+    generatedOpenedHtml: 'Generated and opened HTML',
+    copiedMarkdown: 'Markdown copied',
+    copiedReadingHtml: 'Reading HTML copied',
+    generatedOpenedReadingHtml: 'Generated and opened reading HTML',
+    browserDownloadedWord: 'Word downloaded in browser preview mode.',
+    generatedOpenedWord: 'Generated and opened Word',
+    wordExportFailed: 'Word export failed',
+    browserDownloadedPdf: 'PDF downloaded in browser preview mode.',
+    generatedOpenedPdf: 'Generated and opened PDF',
+    pdfExportFailed: 'PDF export failed',
+    openMarkdownFirst: 'Open a Markdown file first.',
+    browserNoLocalImage: 'Local images cannot be inserted in browser preview mode.',
+    insertedImage: 'Image inserted',
+    insertImageFailed: 'Insert image failed',
+  },
+} as const
+
+type Language = keyof typeof uiText
+type UiText = (typeof uiText)[Language]
+
 function App() {
   const [workspace, setWorkspace] = useState('')
   const [articles, setArticles] = useState<ArticleSummary[]>([])
@@ -126,8 +309,10 @@ function App() {
   const [isFocusMode, setIsFocusMode] = useState(false)
   const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false)
   const [wordStyle, setWordStyle] = useState<WordStyleId>('codex')
+  const [language, setLanguage] = useState<Language>('zh')
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
+  const text = uiText[language]
   const editorScrollRef = useRef<HTMLDivElement | null>(null)
   const currentContent = payload ? editedContent : ''
   const isDirty = Boolean(payload && editedContent !== payload.content)
@@ -233,7 +418,7 @@ function App() {
 
   async function loadArticles(root = workspace, pathToSelect = selectedPath) {
     if (!root.trim()) {
-      setNotice('请先选择或输入 Markdown 文件夹 / 文件。')
+      setNotice(text.choosePathFirst)
       return
     }
     setLoading(true)
@@ -254,7 +439,7 @@ function App() {
       }
       await record(`刷新文章列表：${root}，共 ${items.length} 篇。`)
     } catch (error) {
-      setNotice(`加载失败：${String(error)}`)
+      setNotice(`${text.loadFailed}: ${String(error)}`)
     } finally {
       setLoading(false)
     }
@@ -271,7 +456,7 @@ function App() {
       setEditedContent(nextPayload.content)
       await record(`打开文章：${path}`)
     } catch (error) {
-      setNotice(`读取失败：${String(error)}`)
+      setNotice(`${text.readFailed}: ${String(error)}`)
     } finally {
       setLoading(false)
     }
@@ -279,13 +464,13 @@ function App() {
 
   async function chooseWorkspace() {
     if (!isTauri()) {
-      setNotice('浏览器预览模式下不能打开本地目录。')
+      setNotice(text.browserNoDir)
       return
     }
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择文章工作区',
+      title: text.workspaceDialogTitle,
     })
     if (typeof selected === 'string') {
       setWorkspace(selected)
@@ -296,12 +481,12 @@ function App() {
 
   async function chooseMarkdownFile() {
     if (!isTauri()) {
-      setNotice('浏览器预览模式下不能打开本地文件。')
+      setNotice(text.browserNoFile)
       return
     }
     const selected = await open({
       multiple: false,
-      title: '选择 Markdown 文件',
+      title: text.markdownDialogTitle,
       filters: [
         {
           name: 'Markdown',
@@ -319,20 +504,20 @@ function App() {
   async function copyWechatHtml() {
     if (!payload) return
     await navigator.clipboard.writeText(wechatHtml)
-    setNotice('已复制公众号 HTML')
+    setNotice(text.copiedWechatHtml)
     await record(`复制公众号 HTML：${payload.path}`)
   }
 
   async function saveMarkdown() {
     if (!payload) return
     if (!isDirty) {
-      setNotice('当前没有未保存修改。')
+      setNotice(text.noUnsavedChanges)
       return
     }
     if (!isTauri()) {
       const nextPayload = { ...demoPayload, content: editedContent, preview_content: editedContent }
       setPayload(nextPayload)
-      setNotice('浏览器预览模式已更新示例内容。')
+      setNotice(text.browserDemoUpdated)
       return
     }
     const nextPayload = await invoke<ArticlePayload>('save_article', {
@@ -343,7 +528,7 @@ function App() {
     })
     setPayload(nextPayload)
     setEditedContent(nextPayload.content)
-    setNotice('Markdown 已保存')
+    setNotice(text.markdownSaved)
     await record(`保存 Markdown：${payload.path}`)
     await refreshArticleList(payload.path)
   }
@@ -362,42 +547,42 @@ function App() {
   async function saveWechatHtml() {
     if (!payload) return
     if (!isTauri()) {
-      setNotice('浏览器预览模式下仅支持复制 HTML。')
+      setNotice(text.browserCopyOnlyHtml)
       return
     }
     const output = await invoke<string>('save_wechat_html', {
       articlePath: payload.path,
       html: wechatHtml,
     })
-    setNotice(`已生成并打开 HTML：${output}`)
+    setNotice(`${text.generatedOpenedHtml}: ${output}`)
     await record(`生成公众号 HTML：${output}`)
   }
 
   async function copyMarkdown() {
     if (!payload) return
     await navigator.clipboard.writeText(editedContent)
-    setNotice('已复制 Markdown')
+    setNotice(text.copiedMarkdown)
     await record(`复制 Markdown：${payload.path}`)
   }
 
   async function copyReadingHtml() {
     if (!payload) return
     await navigator.clipboard.writeText(readingHtml)
-    setNotice('已复制阅读 HTML')
+    setNotice(text.copiedReadingHtml)
     await record(`复制阅读 HTML：${payload.path}`)
   }
 
   async function saveReadingHtml() {
     if (!payload) return
     if (!isTauri()) {
-      setNotice('浏览器预览模式下仅支持复制 HTML。')
+      setNotice(text.browserCopyOnlyHtml)
       return
     }
     const output = await invoke<string>('save_reading_html', {
       articlePath: payload.path,
       html: readingHtml,
     })
-    setNotice(`已生成并打开阅读 HTML：${output}`)
+    setNotice(`${text.generatedOpenedReadingHtml}: ${output}`)
     await record(`生成阅读 HTML：${output}`)
   }
 
@@ -413,7 +598,7 @@ function App() {
           exportFileName(selectedArticle?.file_name, 'docx'),
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         )
-        setNotice('浏览器预览模式已下载 Word。')
+        setNotice(text.browserDownloadedWord)
         return
       }
       const output = await invoke<string>('save_binary_export', {
@@ -423,10 +608,10 @@ function App() {
           extension: 'docx',
         },
       })
-      setNotice(`已生成并打开 Word：${output}`)
+      setNotice(`${text.generatedOpenedWord}: ${output}`)
       await record(`生成 Word：${output}`)
     } catch (error) {
-      setNotice(`Word 导出失败：${String(error)}`)
+      setNotice(`${text.wordExportFailed}: ${String(error)}`)
     } finally {
       setLoading(false)
     }
@@ -441,7 +626,7 @@ function App() {
       const contentBase64 = await markdownToPdfBase64(previewContent, fontBase64, wordStyle)
       if (!isTauri()) {
         downloadBase64File(contentBase64, exportFileName(selectedArticle?.file_name, 'pdf'), 'application/pdf')
-        setNotice('浏览器预览模式已下载 PDF。')
+        setNotice(text.browserDownloadedPdf)
         return
       }
       const output = await invoke<string>('save_binary_export', {
@@ -451,10 +636,10 @@ function App() {
           extension: 'pdf',
         },
       })
-      setNotice(`已生成并打开 PDF：${output}`)
+      setNotice(`${text.generatedOpenedPdf}: ${output}`)
       await record(`生成 PDF：${output}`)
     } catch (error) {
-      setNotice(`PDF 导出失败：${String(error)}`)
+      setNotice(`${text.pdfExportFailed}: ${String(error)}`)
     } finally {
       setLoading(false)
     }
@@ -462,16 +647,16 @@ function App() {
 
   async function requestImageMarkdown() {
     if (!payload) {
-      setNotice('请先打开一个 Markdown 文件。')
+      setNotice(text.openMarkdownFirst)
       return null
     }
     if (!isTauri()) {
-      setNotice('浏览器预览模式下不能插入本地图片。')
+      setNotice(text.browserNoLocalImage)
       return null
     }
     const selected = await open({
       multiple: false,
-      title: '插入图片',
+      title: text.insertImageTitle,
       filters: [
         {
           name: 'Images',
@@ -489,11 +674,11 @@ function App() {
           imagePath: selected,
         },
       })
-      setNotice(`已插入图片：${response.relativePath}`)
+      setNotice(`${text.insertedImage}: ${response.relativePath}`)
       await record(`插入图片资源：${response.relativePath}`)
       return response.markdown
     } catch (error) {
-      setNotice(`插入图片失败：${String(error)}`)
+      setNotice(`${text.insertImageFailed}: ${String(error)}`)
       return null
     }
   }
@@ -524,7 +709,7 @@ function App() {
           <FileText size={19} />
           <div>
             <strong>Markdown Reader</strong>
-            <span>本地多平台预览</span>
+            <span>{text.brandSubtitle}</span>
           </div>
         </div>
         <div className="workspace-field" title={workspace}>
@@ -535,42 +720,52 @@ function App() {
             onKeyDown={(event) => {
               if (event.key === 'Enter') loadArticles(event.currentTarget.value)
             }}
-            aria-label="工作区路径"
-            placeholder="选择或输入 Markdown 文件夹 / 文件"
+            aria-label={text.workspaceAria}
+            placeholder={text.workspacePlaceholder}
           />
         </div>
         <div className="toolbar">
           <button
+            className="language-button"
+            onClick={() => setLanguage((value) => (value === 'zh' ? 'en' : 'zh'))}
+            title={text.switchLanguageTitle}
+            type="button"
+            aria-label={text.languageToggleAria}
+          >
+            <Languages size={16} />
+            <span>{language === 'zh' ? '中' : 'EN'}</span>
+          </button>
+          <button
             className="icon-button"
             onClick={() => setIsSidebarOpen((value) => !value)}
-            title={isSidebarOpen ? '收起文档栏' : '展开文档栏'}
+            title={isSidebarOpen ? text.collapseDocs : text.expandDocs}
           >
             {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
           </button>
           <button
             className="icon-button"
             onClick={() => setIsPlatformOpen((value) => !value)}
-            title={isPlatformOpen ? '收起平台栏' : '展开平台栏'}
+            title={isPlatformOpen ? text.collapsePanel : text.expandPanel}
           >
             {isPlatformOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
           </button>
           <button
             className={`icon-button ${isFocusMode ? 'is-active' : ''}`}
             onClick={() => setIsFocusMode((value) => !value)}
-            title={isFocusMode ? '退出专注模式' : '专注模式'}
+            title={isFocusMode ? text.exitFocus : text.focusMode}
           >
             {isFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           </button>
-          <button className="icon-button" onClick={chooseWorkspace} title="打开目录">
+          <button className="icon-button" onClick={chooseWorkspace} title={text.openFolder}>
             <FolderOpen size={17} />
           </button>
-          <button className="icon-button" onClick={chooseMarkdownFile} title="打开 Markdown 文件">
+          <button className="icon-button" onClick={chooseMarkdownFile} title={text.openMarkdownFile}>
             <FileText size={17} />
           </button>
           <button
             className="icon-button"
             onClick={() => setIsQuickOpenOpen(true)}
-            title="快速打开"
+            title={text.quickOpen}
             disabled={articles.length === 0}
           >
             <Search size={17} />
@@ -578,14 +773,14 @@ function App() {
           <button
             className="icon-button"
             onClick={() => loadArticles()}
-            title="刷新"
+            title={text.refresh}
             disabled={!workspace.trim()}
           >
             <RefreshCw size={17} />
           </button>
           <button className="command-button" onClick={saveMarkdown} disabled={!isDirty}>
             <Save size={16} />
-            保存MD
+            {text.saveMarkdown}
           </button>
         </div>
       </header>
@@ -598,13 +793,13 @@ function App() {
         {isSidebarOpen && !isFocusMode && (
         <aside className="sidebar">
           <div className="sidebar-head">
-            <span>文档</span>
+            <span>{text.documents}</span>
             <div className="sidebar-tools">
-              <small>{articles.length} 篇</small>
+              <small>{formatArticleCount(articles.length, language)}</small>
               <button
                 className="panel-toggle"
                 onClick={() => setIsSidebarOpen(false)}
-                title="收起文档栏"
+                title={text.collapseDocs}
               >
                 <PanelLeftClose size={15} />
               </button>
@@ -613,7 +808,7 @@ function App() {
           <label className="search-box">
             <Search size={15} />
             <input
-              placeholder="搜索标题或文件"
+              placeholder={text.searchPlaceholder}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -621,7 +816,7 @@ function App() {
           <div className="article-groups">
             {Object.entries(groupedArticles).map(([group, items]) => (
               <section className="article-group" key={group}>
-                <div className="group-title">{group}</div>
+                <div className="group-title">{displayGroupName(group, language)}</div>
                 {items.map((article) => (
                   <button
                     className={`article-row ${
@@ -639,16 +834,16 @@ function App() {
             {articles.length === 0 && (
               <div className="empty-state">
                 <PanelRight size={22} />
-                <p>{workspace ? '当前路径没有找到文章。' : '先选择 Markdown 文件夹或文件。'}</p>
+                <p>{workspace ? text.noArticlesInPath : text.chooseWorkspaceOrFileFirst}</p>
                 {!workspace && (
                   <>
                   <button className="inline-action" onClick={chooseWorkspace}>
                     <FolderOpen size={15} />
-                    选择目录
+                    {text.chooseFolder}
                   </button>
                   <button className="inline-action" onClick={chooseMarkdownFile}>
                     <FileText size={15} />
-                    选择文件
+                    {text.chooseFile}
                   </button>
                   </>
                 )}
@@ -674,6 +869,7 @@ function App() {
               payload={payload}
               previewParsed={previewParsed}
               selectedFileName={selectedArticle?.file_name}
+              text={text}
             />
           ) : (
           <>
@@ -683,33 +879,33 @@ function App() {
               onClick={() => setReadMode('desktop')}
             >
               <Monitor size={16} />
-              电脑阅读
+              {text.desktopReading}
             </button>
             <button
               className={readMode === 'source' ? 'selected' : ''}
               onClick={() => setReadMode('source')}
             >
               <FileText size={16} />
-              原文
+              {text.source}
             </button>
             <button
               className={readMode === 'edit' ? 'selected' : ''}
               onClick={() => setReadMode('edit')}
             >
               <PencilLine size={16} />
-              编辑
+              {text.edit}
             </button>
-            {isDirty && <span className="dirty-badge">未保存</span>}
+            {isDirty && <span className="dirty-badge">{text.unsaved}</span>}
             {payload && (
               <div className="stats-strip">
-                <span>{stats.words} 字</span>
-                <span>{stats.readingMinutes} 分钟</span>
-                <span>{stats.images} 图</span>
+                <span>{formatWordCount(stats.words, language)}</span>
+                <span>{formatReadingMinutes(stats.readingMinutes, language)}</span>
+                <span>{formatImageCount(stats.images, language, true)}</span>
               </div>
             )}
           </div>
           <article className={`reader-canvas ${readMode}`}>
-            {loading && <div className="loading">正在加载...</div>}
+            {loading && <div className="loading">{text.loading}</div>}
             {!loading && payload && readMode !== 'source' && readMode !== 'edit' && (
               <div className="article-page" style={articleStyle}>
                 <header className="article-title">
@@ -730,11 +926,11 @@ function App() {
                 <div className="editor-bar">
                   <div>
                     <strong>{selectedArticle?.file_name || 'Markdown'}</strong>
-                    <span>{isDirty ? '有未保存修改' : '已保存'}</span>
+                    <span>{isDirty ? text.dirty : text.saved}</span>
                   </div>
                   <button className="command-button" onClick={saveMarkdown} disabled={!isDirty}>
                     <Save size={16} />
-                    保存MD
+                    {text.saveMarkdown}
                   </button>
                 </div>
                 <RichMarkdownEditor
@@ -745,22 +941,23 @@ function App() {
                   onRequestImageMarkdown={requestImageMarkdown}
                   onSave={saveMarkdown}
                   onScroll={() => undefined}
+                  text={text}
                 />
               </div>
             )}
             {!loading && !payload && (
               <div className="empty-reader">
                 <FileText size={34} />
-                <p>{workspace ? '选择左侧 Markdown 文档开始预览。' : '请选择一个 Markdown 文件夹或文件。'}</p>
+                <p>{workspace ? text.chooseLeftDoc : text.chooseMarkdownDoc}</p>
                 {!workspace && (
                   <>
                   <button className="command-button" onClick={chooseWorkspace}>
                     <FolderOpen size={16} />
-                    选择目录
+                    {text.chooseFolder}
                   </button>
                   <button className="command-button" onClick={chooseMarkdownFile}>
                     <FileText size={16} />
-                    选择文件
+                    {text.chooseFile}
                   </button>
                   </>
                 )}
@@ -777,7 +974,7 @@ function App() {
             <button
               className="panel-toggle"
               onClick={() => setIsPlatformOpen(false)}
-              title="收起平台栏"
+              title={text.collapsePanel}
             >
               <PanelRightClose size={15} />
             </button>
@@ -785,20 +982,29 @@ function App() {
               className={panelTab === 'outline' ? 'selected' : ''}
               onClick={() => setPanelTab('outline')}
             >
-              大纲
+              {text.outline}
             </button>
             <button
               className={panelTab === 'exports' ? 'selected' : ''}
               onClick={() => setPanelTab('exports')}
             >
-              导出
+              {text.export}
             </button>
           </div>
 
-          {panelTab === 'outline' && <OutlinePanel outline={outline} stats={stats} onSelect={jumpToOutline} />}
+          {panelTab === 'outline' && (
+            <OutlinePanel
+              language={language}
+              outline={outline}
+              stats={stats}
+              text={text}
+              onSelect={jumpToOutline}
+            />
+          )}
           {panelTab === 'exports' && (
             <ExportPanel
               disabled={!payload}
+              language={language}
               onCopyMarkdown={copyMarkdown}
               onCopyReadingHtml={copyReadingHtml}
               onCopyWechatHtml={copyWechatHtml}
@@ -808,6 +1014,7 @@ function App() {
               onSaveWordDocx={saveWordDocx}
               onWordStyleChange={setWordStyle}
               stats={stats}
+              text={text}
               wordStyle={wordStyle}
             />
           )}
@@ -818,6 +1025,8 @@ function App() {
       {isQuickOpenOpen && (
         <QuickOpenDialog
           articles={articles}
+          language={language}
+          text={text}
           onClose={() => setIsQuickOpenOpen(false)}
           onSelect={(path) => {
             setIsQuickOpenOpen(false)
@@ -849,6 +1058,7 @@ function FocusEditor({
   payload,
   previewParsed,
   selectedFileName,
+  text,
 }: {
   articleHtml: string
   articleStyle: CSSProperties
@@ -863,6 +1073,7 @@ function FocusEditor({
   payload: ArticlePayload | null
   previewParsed: { title: string; digest: string }
   selectedFileName?: string
+  text: UiText
 }) {
   const focusEditorScrollRef = useRef<HTMLDivElement | null>(null)
   const focusPreviewRef = useRef<HTMLDivElement | null>(null)
@@ -887,14 +1098,14 @@ function FocusEditor({
         <div className="focus-bar">
           <div>
             <strong>{selectedFileName || 'Markdown'}</strong>
-            <span>{payload ? (isDirty ? '有未保存修改' : '已保存') : '未打开文档'}</span>
+            <span>{payload ? (isDirty ? text.dirty : text.saved) : text.noOpenedDoc}</span>
           </div>
           <button className="command-button" onClick={onSave} disabled={!isDirty}>
             <Save size={16} />
-            保存MD
+            {text.saveMarkdown}
           </button>
         </div>
-        {loading && <div className="loading">正在加载...</div>}
+        {loading && <div className="loading">{text.loading}</div>}
         {!loading && payload && (
           <RichMarkdownEditor
             editorKey={editorKey}
@@ -904,27 +1115,28 @@ function FocusEditor({
             onRequestImageMarkdown={onRequestImageMarkdown}
             onSave={onSave}
             onScroll={syncPreviewScroll}
+            text={text}
           />
         )}
         {!loading && !payload && (
           <div className="empty-reader">
             <FileText size={34} />
-            <p>请选择一个 Markdown 文档。</p>
+            <p>{text.selectMarkdownDoc}</p>
           </div>
         )}
       </div>
       <div className="focus-preview-pane">
         <div className="focus-bar">
           <div>
-            <strong>实时预览</strong>
-            <span>电脑阅读</span>
+            <strong>{text.livePreview}</strong>
+            <span>{text.desktopReading}</span>
           </div>
         </div>
         <div ref={focusPreviewRef} className="focus-preview-canvas">
           {!payload && (
             <div className="empty-reader">
               <FileText size={34} />
-              <p>预览会在右侧实时更新。</p>
+              <p>{text.previewWillUpdate}</p>
             </div>
           )}
           {payload && (
@@ -940,7 +1152,7 @@ function FocusEditor({
             </div>
           )}
           {payload && !currentContent.trim() && (
-            <div className="empty-reader">开始输入 Markdown，右侧会实时渲染。</div>
+            <div className="empty-reader">{text.startTypingPreview}</div>
           )}
         </div>
       </div>
@@ -950,6 +1162,7 @@ function FocusEditor({
 
 function RichMarkdownEditor({
   scrollRef,
+  text,
   value,
   onChange,
   onRequestImageMarkdown,
@@ -958,6 +1171,7 @@ function RichMarkdownEditor({
 }: {
   editorKey: string
   scrollRef: RefObject<HTMLDivElement | null>
+  text: UiText
   value: string
   onChange: (value: string) => void
   onRequestImageMarkdown: () => Promise<string | null>
@@ -972,37 +1186,42 @@ function RichMarkdownEditor({
         onRequestImageMarkdown={onRequestImageMarkdown}
         onSave={onSave}
         onScroll={onScroll}
+        text={text}
       />
     </div>
   )
 }
 
 function OutlinePanel({
+  language,
   outline,
   stats,
+  text,
   onSelect,
 }: {
+  language: Language
   outline: OutlineItem[]
   stats: ArticleStats
+  text: UiText
   onSelect: (item: OutlineItem) => void
 }) {
   return (
     <div className="panel-content outline-panel">
       <div className="stats-grid">
         <div>
-          <span>字数</span>
+          <span>{text.wordCount}</span>
           <strong>{stats.words}</strong>
         </div>
         <div>
-          <span>阅读</span>
-          <strong>{stats.readingMinutes} 分钟</strong>
+          <span>{text.reading}</span>
+          <strong>{formatReadingMinutes(stats.readingMinutes, language)}</strong>
         </div>
         <div>
-          <span>图片</span>
+          <span>{text.images}</span>
           <strong>{stats.images}</strong>
         </div>
         <div>
-          <span>代码块</span>
+          <span>{text.codeBlocks}</span>
           <strong>{stats.codeBlocks}</strong>
         </div>
       </div>
@@ -1023,7 +1242,7 @@ function OutlinePanel({
       ) : (
         <div className="empty-mini">
           <ListTree size={22} />
-          <p>当前文档还没有标题层级。</p>
+          <p>{text.noOutline}</p>
         </div>
       )}
     </div>
@@ -1032,6 +1251,7 @@ function OutlinePanel({
 
 function ExportPanel({
   disabled,
+  language,
   onCopyMarkdown,
   onCopyReadingHtml,
   onCopyWechatHtml,
@@ -1041,9 +1261,11 @@ function ExportPanel({
   onSaveWordDocx,
   onWordStyleChange,
   stats,
+  text,
   wordStyle,
 }: {
   disabled: boolean
+  language: Language
   onCopyMarkdown: () => void
   onCopyReadingHtml: () => void
   onCopyWechatHtml: () => void
@@ -1053,6 +1275,7 @@ function ExportPanel({
   onSaveWordDocx: () => void
   onWordStyleChange: (style: WordStyleId) => void
   stats: ArticleStats
+  text: UiText
   wordStyle: WordStyleId
 }) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
@@ -1062,19 +1285,19 @@ function ExportPanel({
       <div className="export-summary">
         <Download size={19} />
         <div>
-          <strong>{stats.words || 0} 字</strong>
-          <span>{stats.readingMinutes || 1} 分钟阅读，{stats.images || 0} 张图片</span>
+          <strong>{formatWordCount(stats.words || 0, language)}</strong>
+          <span>{formatExportSummary(stats, language)}</span>
         </div>
       </div>
       <label className="word-style-field">
-        <span>Markdown 样式</span>
+        <span>{text.markdownStyle}</span>
         <select
           value={wordStyle}
           onChange={(event) => onWordStyleChange(event.target.value as WordStyleId)}
         >
           {wordStylePresets.map((preset) => (
             <option key={preset.id} value={preset.id}>
-              {preset.name} / {preset.font}
+              {language === 'zh' ? preset.name : preset.nameEn} / {preset.font}
             </option>
           ))}
         </select>
@@ -1083,18 +1306,18 @@ function ExportPanel({
         <button className="primary-export-button" onClick={onSaveWordDocx} disabled={disabled}>
           <FileDown size={15} />
           Word
-          <span>保留标题、段落和列表</span>
+          <span>{text.wordDescription}</span>
         </button>
         <button className="primary-export-button" onClick={onSavePdf} disabled={disabled}>
           <FileDown size={15} />
           PDF
-          <span>生成干净阅读版</span>
+          <span>{text.pdfDescription}</span>
         </button>
       </div>
       <div className="export-copy-row export-utility-row">
         <button onClick={onCopyMarkdown} disabled={disabled}>
           <Copy size={14} />
-          复制 Markdown
+          {text.copyMarkdown}
         </button>
       </div>
       <button
@@ -1103,32 +1326,32 @@ function ExportPanel({
       >
         <span>
           <FileText size={14} />
-          HTML 输出
+          {text.htmlOutput}
         </span>
-        <span>{isAdvancedOpen ? '收起' : '展开'}</span>
+        <span>{isAdvancedOpen ? text.collapse : text.expand}</span>
       </button>
       {isAdvancedOpen && (
         <div className="export-html-actions">
           <div className="export-html-row">
-            <span>阅读版</span>
+            <span>{text.readingVersion}</span>
             <button onClick={onCopyReadingHtml} disabled={disabled}>
               <Copy size={14} />
-              复制
+              {text.copy}
             </button>
             <button onClick={onSaveReadingHtml} disabled={disabled}>
               <Download size={14} />
-              保存
+              {text.save}
             </button>
           </div>
           <div className="export-html-row">
-            <span>公众号</span>
+            <span>{text.wechat}</span>
             <button onClick={onCopyWechatHtml} disabled={disabled}>
               <Copy size={14} />
-              复制
+              {text.copy}
             </button>
             <button onClick={onSaveWechatHtml} disabled={disabled}>
               <Download size={14} />
-              保存
+              {text.save}
             </button>
           </div>
         </div>
@@ -1138,10 +1361,14 @@ function ExportPanel({
 }
 function QuickOpenDialog({
   articles,
+  language,
+  text,
   onClose,
   onSelect,
 }: {
   articles: ArticleSummary[]
+  language: Language
+  text: UiText
   onClose: () => void
   onSelect: (path: string) => void
 }) {
@@ -1178,7 +1405,7 @@ function QuickOpenDialog({
                 onSelect(filtered[0].path)
               }
             }}
-            placeholder="快速打开 Markdown"
+            placeholder={text.quickOpenPlaceholder}
           />
         </div>
         <div className="quick-open-list">
@@ -1186,10 +1413,10 @@ function QuickOpenDialog({
             <button key={article.path} onClick={() => onSelect(article.path)}>
               <FileText size={16} />
               <span>{article.title || article.file_name}</span>
-              <small>{article.group}</small>
+              <small>{displayGroupName(article.group, language)}</small>
             </button>
           ))}
-          {filtered.length === 0 && <div className="empty-mini">没有匹配的文档。</div>}
+          {filtered.length === 0 && <div className="empty-mini">{text.noMatches}</div>}
         </div>
       </section>
     </div>
@@ -1197,12 +1424,14 @@ function QuickOpenDialog({
 }
 
 function FallbackMarkdownEditor({
+  text,
   value,
   onChange,
   onRequestImageMarkdown,
   onSave,
   onScroll,
 }: {
+  text: UiText
   value: string
   onChange: (value: string) => void
   onRequestImageMarkdown: () => Promise<string | null>
@@ -1240,9 +1469,9 @@ function FallbackMarkdownEditor({
   return (
     <div className="fallback-editor-frame">
       <div className="fallback-editor-tools">
-        <button onClick={insertImage} disabled={isInsertingImage} title="插入图片">
+        <button onClick={insertImage} disabled={isInsertingImage} title={text.insertImageTitle}>
           <ImageIcon size={15} />
-          图片
+          {text.insertImage}
         </button>
       </div>
       <textarea
@@ -1268,7 +1497,7 @@ function AppErrorFallback({ message }: { message: string }) {
   return (
     <main className="app-shell app-error-screen">
       <div className="app-error-card">
-        <strong>Markdown Reader 启动失败</strong>
+        <strong>Markdown Reader failed to start / 启动失败</strong>
         <p>{message}</p>
       </div>
     </main>
@@ -1282,7 +1511,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { messa
   }
 
   static getDerivedStateFromError(error: Error) {
-    return { message: error.message || '前端运行时出现异常。' }
+    return { message: error.message || 'The frontend hit a runtime error. / 前端运行时出现异常。' }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -1326,6 +1555,47 @@ function downloadBase64File(base64: string, filename: string, mimeType: string) 
 
 function exportFileName(name: string | undefined, extension: string) {
   return `${(name || 'article').replace(/\.[^.]+$/, '')}.${extension}`
+}
+
+function formatArticleCount(count: number, language: Language) {
+  return language === 'zh' ? `${count} 篇` : `${count} docs`
+}
+
+function formatWordCount(count: number, language: Language) {
+  return language === 'zh' ? `${count} 字` : `${count} words`
+}
+
+function formatReadingMinutes(minutes: number, language: Language) {
+  return language === 'zh' ? `${minutes} 分钟` : `${minutes} min`
+}
+
+function formatImageCount(count: number, language: Language, short = false) {
+  if (language === 'zh') {
+    return short ? `${count} 图` : `${count} 张图片`
+  }
+  return short ? `${count} img` : `${count} images`
+}
+
+function formatExportSummary(stats: ArticleStats, language: Language) {
+  const minutes = stats.readingMinutes || 1
+  const images = stats.images || 0
+  return language === 'zh'
+    ? `${minutes} 分钟阅读，${images} 张图片`
+    : `${minutes} min read, ${images} images`
+}
+
+function displayGroupName(group: string, language: Language) {
+  if (language === 'zh') return group
+  const groups: Record<string, string> = {
+    示例: 'Demo',
+    文档: 'Documents',
+    草稿: 'Drafts',
+    审稿: 'Review',
+    已确认: 'Approved',
+    已确认稿: 'Approved',
+    'WeMD 审稿': 'WeMD Review',
+  }
+  return groups[group] || group
 }
 
 function markdownStyleVars(preset: ReturnType<typeof getWordStylePreset>): CSSProperties {

@@ -1,16 +1,35 @@
 # Markdown Reader
 
-Local-first Markdown reader and exporter built with Tauri, React, and TypeScript.
+Local-first Markdown reader, editor, and Word/PDF exporter built with Tauri, React, and TypeScript.
 
-Markdown Reader is designed for people who write long Markdown articles with screenshots, outlines, and delivery files. It focuses on a small desktop workflow: open a Markdown file or folder, read it comfortably, edit the source, manage local images, then export Word/PDF/HTML without asking users to install extra converters.
+Markdown Reader is for people who write long Markdown documents with screenshots, outlines, and delivery files. Open a folder or a single `.md` file, read it in a wide desktop layout, insert local images, switch Markdown styles, and export Word/PDF/HTML without installing Pandoc, LaTeX, Microsoft Word, or extra converters.
 
-## Why It Is Different
+If this saves you from another converter setup, a star helps more people find it.
 
-- Local Markdown files stay as normal files. Images are copied into a sibling `<article>-assets/` folder and inserted as relative Markdown paths.
-- Outline navigation is part of the reading surface. Click a heading in the right panel to jump to that section.
-- Export is intentionally quiet. Word and PDF are the primary actions; HTML output stays in an advanced section.
-- Word/PDF export is bundled in the app. It does not rely on Pandoc, LaTeX, Microsoft Word, or external tools on the user's computer.
-- Markdown styles are visible before export. Switching a style updates the reading preview and the exported Word/PDF typography.
+## Screenshots
+
+### 中文界面
+
+![Markdown Reader Chinese UI](docs/assets/markdown-reader-zh.png)
+
+### English UI
+
+![Markdown Reader English UI](docs/assets/markdown-reader-en.png)
+
+## Why Star This
+
+- **Local-first workflow**: Markdown stays on disk as normal files. Image insertion copies assets into a sibling `<article>-assets/` folder and inserts relative Markdown paths.
+- **Readable desktop layout**: left document list, center reading/editor surface, and a clickable outline on the right.
+- **Bundled export path**: Word and PDF export work inside the app, including images and Chinese font support.
+- **Quiet open-source UI**: Word/PDF are primary actions, HTML stays in an advanced section, and the app chrome supports Chinese / English switching.
+- **Markdown styles before export**: choose from 10+ style and font presets, see the preview update, then export with the same typography.
+
+## New In v0.1.3
+
+- Added Chinese and English UI switching for operation buttons, panels, style labels, and common notices.
+- Added public README screenshots for Chinese and English UI.
+- Added English names for the Markdown style presets.
+- Kept Markdown content untouched when switching the app language.
 
 ## New In v0.1.2
 
@@ -28,7 +47,7 @@ Markdown Reader is designed for people who write long Markdown articles with scr
 
 Markdown Reader 是一个本地优先的 Markdown 桌面阅读、编辑和导出工具。它适合写长文、教程、产品说明或带大量截图的 Markdown 文档。
 
-v0.1.2 新增了大纲点击跳转、本地图片插入、Word/PDF 图片导出、导出后自动打开文件，以及 10 多种 Markdown 样式的实时预览。现在导出区只把 Word/PDF 作为主操作，HTML 放到高级输出里，整体更像一个简单清爽的开源桌面工具。
+v0.1.3 新增了中英文界面切换和公开版 README 截图；v0.1.2 已经支持大纲点击跳转、本地图片插入、Word/PDF 图片导出、导出后自动打开文件，以及 10 多种 Markdown 样式的实时预览。现在导出区只把 Word/PDF 作为主操作，HTML 放到高级输出里，整体更像一个简单清爽的开源桌面工具。
 
 ## Features
 
@@ -43,6 +62,7 @@ v0.1.2 新增了大纲点击跳转、本地图片插入、Word/PDF 图片导出�
 - Copy Markdown.
 - Copy or save reading HTML and WeChat-ready HTML from the advanced export section.
 - Automatically open exported files after saving.
+- Switch the app UI between Chinese and English.
 
 ## Download
 
@@ -78,24 +98,11 @@ Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local mac
 Push a `v*` tag to create a GitHub Release:
 
 ```bash
-git tag v0.1.2
-git push origin main v0.1.2
+git tag v0.1.3
+git push origin main v0.1.3
 ```
 
 The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives, then uploads them to the matching GitHub Release.
-
-## Visibility Notes
-
-If the project has no stars or forks yet, that does not necessarily mean the product idea is weak. For small open-source desktop tools, discovery usually depends on:
-
-- a clear screenshot or GIF in the README;
-- an obvious "why this instead of MarkText/Zettlr/Joplin" section;
-- release assets that are easy to install;
-- topic tags such as `markdown`, `tauri`, `desktop-app`, `pdf-export`, `docx`, `local-first`;
-- short examples showing image insertion and Word/PDF export results;
-- posts on GitHub, X/Twitter, Reddit, Hacker News, V2EX, or developer communities.
-
-The current differentiator is local-first Markdown writing with asset folders and bundled Word/PDF export. A short demo GIF would likely help more than adding another feature right now.
 
 ## License
 
