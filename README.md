@@ -81,14 +81,14 @@ If the macOS build is not Apple-signed or notarized, the first launch may requir
 ## Local Development
 
 ```bash
-npm ci
-npm run tauri:dev
+pnpm install
+pnpm run tauri:dev
 ```
 
 ## Local Build
 
 ```bash
-npm run tauri:build
+pnpm run tauri:build
 ```
 
 Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local macOS builds require Rust/Cargo, Xcode Command Line Tools, and a macOS environment.
