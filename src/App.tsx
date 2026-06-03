@@ -713,6 +713,16 @@ function App() {
     }
   }
 
+  function toggleFocusMode() {
+    setIsFocusMode((value) => {
+      if (!value) {
+        setReadMode('desktop')
+        setPanelTab('outline')
+      }
+      return !value
+    })
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -762,7 +772,7 @@ function App() {
           </button>
           <button
             className={`icon-button ${isFocusMode ? 'is-active' : ''}`}
-            onClick={() => setIsFocusMode((value) => !value)}
+            onClick={toggleFocusMode}
             title={isFocusMode ? text.exitFocus : text.focusMode}
           >
             {isFocusMode ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
@@ -866,20 +876,17 @@ function App() {
 
         <section className={`reader-panel ${isFocusMode ? 'focus-reader' : ''}`}>
           {isFocusMode ? (
-            <FocusEditor
+            <FocusReader
               articleHtml={articleHtml}
               articleStyle={articleStyle}
-              currentContent={currentContent}
-              editedContent={editedContent}
-              editorKey={selectedPath || 'focus-editor'}
-              isDirty={isDirty}
+              language={language}
               loading={loading}
-              onChange={setEditedContent}
-              onRequestImageMarkdown={requestImageMarkdown}
-              onSave={saveMarkdown}
+              onOutlineSelect={jumpToOutline}
+              outline={outline}
               payload={payload}
               previewParsed={previewParsed}
               selectedFileName={selectedArticle?.file_name}
+              stats={stats}
               text={text}
             />
           ) : (
@@ -1055,102 +1062,56 @@ function App() {
   )
 }
 
-function FocusEditor({
+function FocusReader({
   articleHtml,
   articleStyle,
-  currentContent,
-  editedContent,
-  editorKey,
-  isDirty,
+  language,
   loading,
-  onChange,
-  onRequestImageMarkdown,
-  onSave,
+  onOutlineSelect,
+  outline,
   payload,
   previewParsed,
   selectedFileName,
+  stats,
   text,
 }: {
   articleHtml: string
   articleStyle: CSSProperties
-  currentContent: string
-  editedContent: string
-  editorKey: string
-  isDirty: boolean
+  language: Language
   loading: boolean
-  onChange: (value: string) => void
-  onRequestImageMarkdown: () => Promise<string | null>
-  onSave: () => void
+  onOutlineSelect: (item: OutlineItem) => void
+  outline: OutlineItem[]
   payload: ArticlePayload | null
   previewParsed: { title: string; digest: string }
   selectedFileName?: string
+  stats: ArticleStats
   text: UiText
 }) {
-  const focusEditorScrollRef = useRef<HTMLDivElement | null>(null)
-  const focusPreviewRef = useRef<HTMLDivElement | null>(null)
-
-  function syncPreviewScroll() {
-    const editor = focusEditorScrollRef.current
-    const preview = focusPreviewRef.current
-    if (!editor || !preview) return
-    const editorMax = editor.scrollHeight - editor.clientHeight
-    const previewMax = preview.scrollHeight - preview.clientHeight
-    if (editorMax <= 0 || previewMax <= 0) return
-    preview.scrollTop = (editor.scrollTop / editorMax) * previewMax
-  }
-
-  useEffect(() => {
-    requestAnimationFrame(syncPreviewScroll)
-  }, [editedContent])
-
   return (
-    <section className="focus-split">
-      <div className="focus-editor-pane">
-        <div className="focus-bar">
+    <section className="focus-reading-layout">
+      <div className="focus-reading-main">
+        <div className="focus-reading-bar">
           <div>
-            <strong>{selectedFileName || 'Markdown'}</strong>
-            <span>{payload ? (isDirty ? text.dirty : text.saved) : text.noOpenedDoc}</span>
-          </div>
-          <button className="command-button" onClick={onSave} disabled={!isDirty}>
-            <Save size={16} />
-            {text.saveMarkdown}
-          </button>
-        </div>
-        {loading && <div className="loading">{text.loading}</div>}
-        {!loading && payload && (
-          <RichMarkdownEditor
-            editorKey={editorKey}
-            scrollRef={focusEditorScrollRef}
-            value={editedContent}
-            onChange={onChange}
-            onRequestImageMarkdown={onRequestImageMarkdown}
-            onSave={onSave}
-            onScroll={syncPreviewScroll}
-            text={text}
-          />
-        )}
-        {!loading && !payload && (
-          <div className="empty-reader">
-            <FileText size={34} />
-            <p>{text.selectMarkdownDoc}</p>
-          </div>
-        )}
-      </div>
-      <div className="focus-preview-pane">
-        <div className="focus-bar">
-          <div>
-            <strong>{text.livePreview}</strong>
+            <strong>{selectedFileName || text.noOpenedDoc}</strong>
             <span>{text.desktopReading}</span>
           </div>
-        </div>
-        <div ref={focusPreviewRef} className="focus-preview-canvas">
-          {!payload && (
-            <div className="empty-reader">
-              <FileText size={34} />
-              <p>{text.previewWillUpdate}</p>
+          {payload && (
+            <div className="stats-strip focus-stats">
+              <span>{formatWordCount(stats.words, language)}</span>
+              <span>{formatReadingMinutes(stats.readingMinutes, language)}</span>
+              <span>{formatImageCount(stats.images, language, true)}</span>
             </div>
           )}
-          {payload && (
+        </div>
+        <div className="focus-reading-canvas">
+          {loading && <div className="loading">{text.loading}</div>}
+          {!loading && !payload && (
+            <div className="empty-reader">
+              <FileText size={34} />
+              <p>{text.selectMarkdownDoc}</p>
+            </div>
+          )}
+          {!loading && payload && (
             <div className="article-page focus-page" style={articleStyle}>
               <header className="article-title">
                 <h1>{previewParsed.title}</h1>
@@ -1162,11 +1123,23 @@ function FocusEditor({
               />
             </div>
           )}
-          {payload && !currentContent.trim() && (
-            <div className="empty-reader">{text.startTypingPreview}</div>
-          )}
         </div>
       </div>
+      <aside className="focus-outline-panel">
+        <div className="focus-reading-bar">
+          <div>
+            <strong>{text.outline}</strong>
+            <span>{formatArticleCount(outline.length, language)}</span>
+          </div>
+        </div>
+        <OutlinePanel
+          language={language}
+          outline={outline}
+          stats={stats}
+          text={text}
+          onSelect={onOutlineSelect}
+        />
+      </aside>
     </section>
   )
 }

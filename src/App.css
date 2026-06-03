@@ -995,33 +995,32 @@ button:hover:not(:disabled) {
   text-align: center;
 }
 
-.focus-split {
+.focus-reading-layout {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(420px, 1fr);
-  background: #eef1f4;
+  grid-template-columns: minmax(560px, 1fr) 340px;
+  background: #f7f7f8;
 }
 
-.focus-editor-pane,
-.focus-preview-pane {
+.focus-reading-main,
+.focus-outline-panel {
   min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr);
+}
+
+.focus-reading-main {
   background: #ffffff;
 }
 
-.focus-editor-pane {
-  border-right: 1px solid #dce2e7;
+.focus-outline-panel {
+  border-left: 1px solid #e5e7eb;
+  background: #fbfbfc;
 }
 
-.focus-preview-pane {
-  grid-template-rows: 50px minmax(0, 1fr);
-  background: #eef1f4;
-}
-
-.focus-bar {
+.focus-reading-bar {
   min-width: 0;
   display: flex;
   align-items: center;
@@ -1032,13 +1031,13 @@ button:hover:not(:disabled) {
   background: #fbfcfd;
 }
 
-.focus-bar > div:first-child {
+.focus-reading-bar > div:first-child {
   min-width: 0;
   display: grid;
   gap: 2px;
 }
 
-.focus-bar strong {
+.focus-reading-bar strong {
   overflow: hidden;
   color: #1f2933;
   font-size: 13px;
@@ -1046,17 +1045,51 @@ button:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-.focus-bar span {
+.focus-reading-bar span {
   color: #74818c;
   font-size: 12px;
 }
 
-.focus-preview-canvas {
+.focus-stats {
+  margin-left: 0;
+}
+
+.focus-reading-canvas {
   min-height: 0;
   overflow: auto;
-  padding: 28px;
+  padding: 28px 32px;
+  background: #f7f7f8;
 }
 
 .focus-page {
-  max-width: 860px;
+  max-width: 980px;
+}
+
+.focus-outline-panel .panel-content {
+  padding: 12px 10px 16px;
+}
+
+.focus-outline-panel .outline-panel {
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .focus-reading-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(220px, 42vh);
+  }
+
+  .focus-outline-panel {
+    border-top: 1px solid #e5e7eb;
+    border-left: 0;
+  }
+
+  .focus-reading-canvas {
+    padding: 18px 14px;
+  }
+
+  .focus-page {
+    max-width: none;
+    padding: 28px 24px;
+  }
 }
