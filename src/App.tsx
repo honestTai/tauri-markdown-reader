@@ -350,6 +350,15 @@ function App() {
 
   async function bootstrap() {
     if (isTauri()) {
+      try {
+        const initialPath = await invoke<string | null>('initial_open_path')
+        if (initialPath) {
+          setWorkspace(initialPath)
+          await loadArticles(initialPath, initialPath)
+        }
+      } catch (error) {
+        setNotice(`${text.loadFailed}: ${String(error)}`)
+      }
       return
     }
     if (new URLSearchParams(window.location.search).get('demo') === '1') {
@@ -363,6 +372,8 @@ function App() {
 
   useEffect(() => {
     void bootstrap()
+    // The app should only consume process launch args once on startup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

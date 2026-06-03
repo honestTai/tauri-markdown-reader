@@ -66,6 +66,11 @@ struct InsertImageAssetResponse {
 }
 
 #[tauri::command]
+fn initial_open_path() -> Option<String> {
+    initial_open_path_from_args(std::env::args())
+}
+
+#[tauri::command]
 fn scan_workspace(workspace: String) -> Result<Vec<ArticleSummary>, String> {
     let input = PathBuf::from(workspace);
     if input.is_file() {
@@ -306,6 +311,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            initial_open_path,
             scan_workspace,
             read_article,
             save_article,
@@ -418,6 +424,21 @@ fn project_root() -> PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
         .to_path_buf()
+}
+
+fn initial_open_path_from_args<I, S>(args: I) -> Option<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    args.into_iter().skip(1).find_map(|arg| {
+        let path = PathBuf::from(arg.as_ref());
+        if path.is_file() && is_markdown_file(&path) {
+            Some(path.to_string_lossy().to_string())
+        } else {
+            None
+        }
+    })
 }
 
 fn open_path(path: &Path) -> Result<(), String> {
@@ -668,6 +689,30 @@ mod tests {
         assert!(articles.iter().all(|article| article.status == "document"));
         assert!(articles.iter().any(|article| article.title == "单文件"));
         assert!(articles.iter().any(|article| article.title == "同目录"));
+    }
+
+    #[test]
+    fn detects_markdown_path_from_launch_args() {
+        let root = std::env::temp_dir().join(format!(
+            "tauri-reader-launch-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create launch root");
+        let article_path = root.join("launch.md");
+        let image_path = root.join("cover.png");
+        fs::write(&article_path, "# Launch").expect("write launch article");
+        fs::write(&image_path, [0x89, 0x50, 0x4e, 0x47]).expect("write launch image");
+
+        let detected = initial_open_path_from_args([
+            "reader.exe".to_string(),
+            image_path.to_string_lossy().to_string(),
+            article_path.to_string_lossy().to_string(),
+        ]);
+
+        assert_eq!(detected, Some(article_path.to_string_lossy().to_string()));
     }
 
     #[test]
