@@ -1,4 +1,4 @@
-export type ArticleStatus = 'draft' | 'inbox' | 'approved' | 'document'
+export type ArticleStatus = 'document'
 
 export interface ArticleSummary {
   path: string
@@ -8,6 +8,7 @@ export interface ArticleSummary {
   group: string
   status: ArticleStatus
   updated: number
+  relative_path: string
 }
 
 export interface ArticlePayload {
@@ -15,11 +16,16 @@ export interface ArticlePayload {
   base_dir: string
   content: string
   preview_content: string
+  missing_images: MissingImage[]
 }
 
-export type PanelTab = 'outline' | 'exports'
+export type PanelTab = 'outline' | 'actions' | 'settings'
 
 export type ReadMode = 'desktop' | 'source' | 'edit'
+
+export type SortMode = 'updated' | 'name' | 'path'
+
+export type LibraryFilter = 'all' | 'current' | 'favorites' | 'recent'
 
 export type MarkdownThemeId = 'green' | 'ink' | 'warm'
 
@@ -39,11 +45,6 @@ export type WordStyleId =
   | 'compact'
   | 'presentation'
 
-export interface WechatRenderOptions {
-  theme: MarkdownThemeId
-  codeStyle: CodeBlockStyleId
-}
-
 export interface ParsedArticle {
   title: string
   digest: string
@@ -62,6 +63,45 @@ export interface ArticleStats {
   images: number
   codeBlocks: number
   readingMinutes: number
+}
+
+export interface MissingImage {
+  alt: string
+  src: string
+  resolved_path: string
+}
+
+export interface SearchResult {
+  path: string
+  file_name: string
+  title: string
+  relative_path: string
+  heading: string
+  snippet: string
+  line: number
+  score: number
+}
+
+export interface ReaderSettings {
+  default_workspace: string
+  default_read_mode: ReadMode
+  default_export_style: WordStyleId
+  restore_last_document: boolean
+  remember_scroll_position: boolean
+  focus_keep_outline: boolean
+  language: 'zh' | 'en'
+}
+
+export interface ReaderState {
+  recent_workspaces: string[]
+  recent_files: string[]
+  favorites: string[]
+  pinned: string[]
+  reading_positions: Record<string, number>
+  last_workspace: string
+  last_file: string
+  focus_mode: boolean
+  settings: ReaderSettings
 }
 
 export interface CheckItem {

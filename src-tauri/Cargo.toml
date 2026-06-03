@@ -1,6 +1,6 @@
 [package]
 name = "tauri-markdown-reader"
-version = "0.1.3"
+version = "0.2.0"
 description = "Local Markdown reading and multi-platform preview desktop app"
 authors = ["Codex"]
 edition = "2021"

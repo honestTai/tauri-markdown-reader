@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.2.0 - 2026-06-03
+
+### Added
+
+- Recent workspace and recent file persistence.
+- Startup restore for the last workspace, document, read mode, focus mode, and scroll position.
+- Full-text Markdown search with snippets and direct result opening.
+- Favorites and pinned documents stored in local app state.
+- Document list filters and sorting by updated time, filename, or path.
+- Per-document scroll memory and one-click back to top.
+- Focus reading mode with configurable outline visibility.
+- Settings panel for default workspace, default mode, export style, restore behavior, scroll memory, focus outline, and language.
+- Missing-image detection, image path copying, and large rendered-image preview.
+- Plain-text copy and reading HTML copy/save actions.
+- Save-before backup for Markdown edits.
+
+### Changed
+
+- Reworked the app around a local document-library reader model.
+- Replaced the right export-first panel with navigation, document actions, and settings.
+- Reduced editing to a supporting light-editing mode.
+- Updated docs to match the V2 reader direction.
+
+### Removed
+
+- Legacy platform-output UI and copy.
+- Platform-specific HTML actions and document checks.
+
 ## v0.1.3 - 2026-06-02
 
 ### Added
@@ -28,7 +56,7 @@
 ### Changed
 
 - Simplified the export panel: Word/PDF are primary, HTML output is secondary.
-- Removed the WeChat-width reading tab to keep the app focused on desktop reading.
+- Removed the narrow secondary reading tab to keep the app focused on desktop reading.
 - Replaced the fragile rich editor path with a stable Markdown source editor.
 - Renamed the export style selector to "Markdown style" to match what it controls.
 

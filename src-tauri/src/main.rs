@@ -4,6 +4,7 @@ use base64::{engine::general_purpose, Engine as _};
 use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -20,6 +21,7 @@ struct ArticleSummary {
     group: String,
     status: String,
     updated: u64,
+    relative_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -28,6 +30,27 @@ struct ArticlePayload {
     base_dir: String,
     content: String,
     preview_content: String,
+    missing_images: Vec<MissingImage>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MissingImage {
+    alt: String,
+    src: String,
+    resolved_path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SearchResult {
+    path: String,
+    file_name: String,
+    title: String,
+    relative_path: String,
+    heading: String,
+    snippet: String,
+    line: usize,
+    score: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,11 +81,72 @@ struct InsertImageAssetRequest {
     image_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchWorkspaceRequest {
+    workspace: String,
+    query: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InsertImageAssetResponse {
     markdown: String,
     relative_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReaderSettings {
+    default_workspace: String,
+    default_read_mode: String,
+    default_export_style: String,
+    restore_last_document: bool,
+    remember_scroll_position: bool,
+    focus_keep_outline: bool,
+    language: String,
+}
+
+impl Default for ReaderSettings {
+    fn default() -> Self {
+        Self {
+            default_workspace: String::new(),
+            default_read_mode: "desktop".to_string(),
+            default_export_style: "codex".to_string(),
+            restore_last_document: true,
+            remember_scroll_position: true,
+            focus_keep_outline: true,
+            language: "zh".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReaderState {
+    recent_workspaces: Vec<String>,
+    recent_files: Vec<String>,
+    favorites: Vec<String>,
+    pinned: Vec<String>,
+    reading_positions: HashMap<String, f64>,
+    last_workspace: String,
+    last_file: String,
+    focus_mode: bool,
+    settings: ReaderSettings,
+}
+
+impl Default for ReaderState {
+    fn default() -> Self {
+        Self {
+            recent_workspaces: Vec::new(),
+            recent_files: Vec::new(),
+            favorites: Vec::new(),
+            pinned: Vec::new(),
+            reading_positions: HashMap::new(),
+            last_workspace: String::new(),
+            last_file: String::new(),
+            focus_mode: false,
+            settings: ReaderSettings::default(),
+        }
+    }
 }
 
 #[tauri::command]
@@ -84,28 +168,79 @@ fn scan_workspace(workspace: String) -> Result<Vec<ArticleSummary>, String> {
         return scan_workspace(parent.to_string_lossy().to_string());
     }
 
-    let root = normalize_workspace_root(input);
-    let groups = [
-        ("articles/drafts", "草稿", "draft"),
-        ("articles/wemd-inbox", "WeMD 审稿", "inbox"),
-        ("articles/approved", "已确认稿", "approved"),
-    ];
-
+    let root = input;
     let mut articles = Vec::new();
-    for (relative, group, status) in groups {
-        let dir = root.join(relative);
-        if !dir.exists() {
-            continue;
-        }
-        collect_markdown_files(&dir, group, status, false, &mut articles)?;
-    }
-
-    if articles.is_empty() {
-        collect_markdown_files(&root, "文档", "document", true, &mut articles)?;
-    }
+    collect_markdown_files(&root, "文档", "document", true, &root, &mut articles)?;
 
     articles.sort_by(|a, b| b.updated.cmp(&a.updated));
     Ok(articles)
+}
+
+#[tauri::command]
+fn search_workspace(request: SearchWorkspaceRequest) -> Result<Vec<SearchResult>, String> {
+    let query = request.query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let articles = scan_workspace(request.workspace)?;
+    let mut results = Vec::new();
+    for article in articles {
+        let path = PathBuf::from(&article.path);
+        let raw = fs::read_to_string(&path).unwrap_or_default();
+        let lower_title = article.title.to_lowercase();
+        let lower_file = article.file_name.to_lowercase();
+        let lower_raw = raw.to_lowercase();
+        if !lower_title.contains(&query) && !lower_file.contains(&query) && !lower_raw.contains(&query) {
+            continue;
+        }
+
+        let mut heading = String::new();
+        let mut best_line = 1;
+        let mut snippet = String::new();
+        for (index, line) in raw.lines().enumerate() {
+            let trimmed = line.trim();
+            if let Some(next_heading) = trimmed.strip_prefix('#') {
+                heading = next_heading.trim_start_matches('#').trim().to_string();
+            }
+            if trimmed.to_lowercase().contains(&query) {
+                best_line = index + 1;
+                snippet = make_snippet(trimmed, &query);
+                break;
+            }
+        }
+
+        if snippet.is_empty() {
+            snippet = if lower_title.contains(&query) {
+                article.title.clone()
+            } else {
+                article.file_name.clone()
+            };
+        }
+
+        let mut score = 1;
+        if lower_title.contains(&query) {
+            score += 4;
+        }
+        if lower_file.contains(&query) {
+            score += 3;
+        }
+
+        results.push(SearchResult {
+            path: article.path,
+            file_name: article.file_name,
+            title: article.title,
+            relative_path: article.relative_path,
+            heading,
+            snippet,
+            line: best_line,
+            score,
+        });
+    }
+
+    results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.relative_path.cmp(&b.relative_path)));
+    results.truncate(80);
+    Ok(results)
 }
 
 #[tauri::command]
@@ -117,20 +252,46 @@ fn read_article(path: String) -> Result<ArticlePayload, String> {
         .ok_or_else(|| "无法识别文章目录".to_string())?
         .to_path_buf();
     let preview_content = inline_local_images(&content, &base_dir)?;
+    let missing_images = find_missing_images(&content, &base_dir)?;
 
     Ok(ArticlePayload {
         path,
         base_dir: base_dir.to_string_lossy().to_string(),
         content,
         preview_content,
+        missing_images,
     })
 }
 
 #[tauri::command]
 fn save_article(request: SaveArticleRequest) -> Result<ArticlePayload, String> {
     let article_path = PathBuf::from(&request.path);
+    backup_article(&article_path)?;
     fs::write(&article_path, request.content).map_err(to_err)?;
     read_article(request.path)
+}
+
+#[tauri::command]
+fn load_reader_state() -> Result<ReaderState, String> {
+    let path = reader_state_path()?;
+    if !path.exists() {
+        return Ok(ReaderState::default());
+    }
+    let raw = fs::read_to_string(path).map_err(to_err)?;
+    let mut state = serde_json::from_str::<ReaderState>(&raw).unwrap_or_default();
+    trim_reader_state(&mut state);
+    Ok(state)
+}
+
+#[tauri::command]
+fn save_reader_state(mut state: ReaderState) -> Result<(), String> {
+    trim_reader_state(&mut state);
+    let path = reader_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(to_err)?;
+    }
+    let raw = serde_json::to_string_pretty(&state).map_err(to_err)?;
+    fs::write(path, raw).map_err(to_err)
 }
 
 #[tauri::command]
@@ -222,31 +383,6 @@ fn append_build_log(entry: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_wechat_html(article_path: String, html: String) -> Result<String, String> {
-    let article = PathBuf::from(article_path);
-    let slug = article
-        .file_stem()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "无法识别文章 slug".to_string())?;
-    let root = workspace_root_for_article(&article)?;
-    let output = if root.join("articles").exists() {
-        root.join("articles")
-            .join("approved-html")
-            .join(format!("{slug}.html"))
-    } else {
-        root.join("exports")
-            .join("wechat-html")
-            .join(format!("{slug}.html"))
-    };
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent).map_err(to_err)?;
-    }
-    fs::write(&output, html).map_err(to_err)?;
-    open_path(&output)?;
-    Ok(output.to_string_lossy().to_string())
-}
-
-#[tauri::command]
 fn save_reading_html(article_path: String, html: String) -> Result<String, String> {
     let article = PathBuf::from(article_path);
     let slug = article
@@ -313,12 +449,14 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             initial_open_path,
             scan_workspace,
+            search_workspace,
             read_article,
             save_article,
+            load_reader_state,
+            save_reader_state,
             preview_markdown_content,
             insert_image_asset,
             append_build_log,
-            save_wechat_html,
             save_reading_html,
             read_binary_file,
             save_binary_export
@@ -378,6 +516,104 @@ fn inline_local_images(raw: &str, base_dir: &Path) -> Result<String, String> {
         }
     });
     Ok(replaced.into_owned())
+}
+
+fn find_missing_images(raw: &str, base_dir: &Path) -> Result<Vec<MissingImage>, String> {
+    let image_re = Regex::new(r#"!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)"#).map_err(to_err)?;
+    let mut missing = Vec::new();
+    for caps in image_re.captures_iter(raw) {
+        let alt = caps.get(1).map(|m| m.as_str()).unwrap_or_default().to_string();
+        let src = caps.get(2).map(|m| m.as_str()).unwrap_or_default().to_string();
+        if src.starts_with("data:image/") || src.starts_with("http://") || src.starts_with("https://") {
+            continue;
+        }
+        let image_path = base_dir.join(src.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !image_path.exists() {
+            missing.push(MissingImage {
+                alt,
+                src,
+                resolved_path: image_path.to_string_lossy().to_string(),
+            });
+        }
+    }
+    Ok(missing)
+}
+
+fn backup_article(article_path: &Path) -> Result<(), String> {
+    if !article_path.exists() {
+        return Ok(());
+    }
+    let Some(parent) = article_path.parent() else {
+        return Ok(());
+    };
+    let backup_dir = parent.join(".reader-backups");
+    fs::create_dir_all(&backup_dir).map_err(to_err)?;
+    let stem = article_path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .map(sanitize_asset_segment)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "document".to_string());
+    let extension = article_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("md");
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(to_err)?
+        .as_secs();
+    let backup = backup_dir.join(format!("{stem}-{timestamp}.{extension}"));
+    fs::copy(article_path, backup).map_err(to_err)?;
+    Ok(())
+}
+
+fn reader_state_path() -> Result<PathBuf, String> {
+    let base = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
+        .ok_or_else(|| "无法识别应用配置目录".to_string())?;
+    Ok(base.join("Markdown Reader").join("reader-state-v2.json"))
+}
+
+fn trim_reader_state(state: &mut ReaderState) {
+    dedupe_trim(&mut state.recent_workspaces, 20);
+    dedupe_trim(&mut state.recent_files, 50);
+    dedupe_trim(&mut state.favorites, 500);
+    dedupe_trim(&mut state.pinned, 500);
+    let known_files: HashSet<String> = state
+        .recent_files
+        .iter()
+        .chain(state.favorites.iter())
+        .chain(state.pinned.iter())
+        .cloned()
+        .collect();
+    state.reading_positions.retain(|path, _| known_files.contains(path) || Path::new(path).exists());
+}
+
+fn dedupe_trim(values: &mut Vec<String>, max: usize) {
+    let mut seen = HashSet::new();
+    values.retain(|value| {
+        let clean = value.trim();
+        !clean.is_empty() && seen.insert(clean.to_string())
+    });
+    values.truncate(max);
+}
+
+fn make_snippet(line: &str, query: &str) -> String {
+    let lower = line.to_lowercase();
+    let Some(index) = lower.find(query) else {
+        return line.chars().take(120).collect();
+    };
+    let start = lower[..index].chars().count().saturating_sub(42);
+    let end = start + 126;
+    let mut snippet: String = line.chars().skip(start).take(end - start).collect();
+    if start > 0 {
+        snippet = format!("...{snippet}");
+    }
+    if line.chars().count() > end {
+        snippet.push_str("...");
+    }
+    snippet
 }
 
 fn mime_type_for(bytes: &[u8], path: &Path) -> &'static str {
@@ -469,38 +705,12 @@ fn to_err<E: std::fmt::Display>(error: E) -> String {
     error.to_string()
 }
 
-fn normalize_workspace_root(input: PathBuf) -> PathBuf {
-    if input.join("articles").exists() {
-        return input;
-    }
-    if input.file_name().and_then(|name| name.to_str()) == Some("articles") {
-        if let Some(parent) = input.parent() {
-            return parent.to_path_buf();
-        }
-    }
-    let article_subdirs = ["drafts", "wemd-inbox", "approved"];
-    if input
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(|name| article_subdirs.contains(&name))
-        .unwrap_or(false)
-    {
-        if let Some(articles_dir) = input.parent() {
-            if articles_dir.file_name().and_then(|name| name.to_str()) == Some("articles") {
-                if let Some(root) = articles_dir.parent() {
-                    return root.to_path_buf();
-                }
-            }
-        }
-    }
-    input
-}
-
 fn collect_markdown_files(
     dir: &Path,
     group: &str,
     status: &str,
     recursive: bool,
+    root: &Path,
     articles: &mut Vec<ArticleSummary>,
 ) -> Result<(), String> {
     if !dir.exists() {
@@ -510,18 +720,18 @@ fn collect_markdown_files(
         let entry = entry.map_err(to_err)?;
         let path = entry.path();
         if path.is_dir() && recursive && should_enter_dir(&path) {
-            collect_markdown_files(&path, group, status, recursive, articles)?;
+            collect_markdown_files(&path, group, status, recursive, root, articles)?;
             continue;
         }
         if !is_markdown_file(&path) {
             continue;
         }
-        articles.push(summarize_markdown_file(&path, group, status)?);
+        articles.push(summarize_markdown_file(&path, group, status, root)?);
     }
     Ok(())
 }
 
-fn summarize_markdown_file(path: &Path, group: &str, status: &str) -> Result<ArticleSummary, String> {
+fn summarize_markdown_file(path: &Path, group: &str, status: &str, root: &Path) -> Result<ArticleSummary, String> {
     let raw = fs::read_to_string(path).unwrap_or_default();
     let (title, digest) = parse_frontmatter(&raw);
     let metadata = fs::metadata(path).map_err(to_err)?;
@@ -531,6 +741,12 @@ fn summarize_markdown_file(path: &Path, group: &str, status: &str) -> Result<Art
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|duration| duration.as_secs())
         .unwrap_or_default();
+
+    let relative_path = path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/");
 
     Ok(ArticleSummary {
         path: path.to_string_lossy().to_string(),
@@ -551,6 +767,7 @@ fn summarize_markdown_file(path: &Path, group: &str, status: &str) -> Result<Art
         group: group.to_string(),
         status: status.to_string(),
         updated,
+        relative_path,
     })
 }
 
@@ -620,15 +837,13 @@ mod tests {
     }
 
     #[test]
-    fn scans_workflow_article_workspace() {
+    fn scans_markdown_workspace_recursively() {
         let root = fixture_root();
         let articles = scan_workspace(root.to_string_lossy().to_string()).expect("scan workspace");
         assert!(!articles.is_empty(), "default workspace should contain markdown articles");
         assert!(
-            articles.iter().any(|article| article.status == "draft")
-                || articles.iter().any(|article| article.status == "approved")
-                || articles.iter().any(|article| article.status == "inbox"),
-            "articles should be classified by workflow status"
+            articles.iter().all(|article| article.status == "document"),
+            "V2 scans folders as a generic document library"
         );
     }
 
@@ -652,7 +867,7 @@ mod tests {
         let articles = scan_workspace(drafts_dir).expect("scan drafts dir");
         assert!(
             !articles.is_empty(),
-            "selecting articles/drafts should still resolve the workflow root"
+            "selecting a nested markdown folder should scan that folder directly"
         );
     }
 

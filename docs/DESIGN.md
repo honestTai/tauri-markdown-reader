@@ -1,16 +1,26 @@
-# Tauri Markdown Reader Design Notes
+# Markdown Reader V2 Design Notes
 
-界面按原设计文稿实现为一个本地内容工作台：
+The V2 interface keeps the three-column workbench but changes the product center of gravity to reading and retrieval.
 
-- 左侧：文档列表和搜索。
-- 中间：电脑阅读、公众号宽度、原文三种阅读模式。
-- 右侧：公众号、小红书、检查三类平台面板。
-- 顶部：工作区路径、打开目录、刷新、复制 HTML、导出图片。
+## Layout
 
-视觉方向：
+- Top bar: workspace picker, library/panel toggles, focus mode, open folder, open file, quick open, refresh, back to top, save.
+- Left library: search, filters, sorting, pinned documents, favorites, recent documents, and relative paths.
+- Center reader: reading, source, and edit modes.
+- Right panel: outline, document statistics, image status, copy/export actions, and settings.
 
-- 浅灰背景、白色阅读页、绿色强调色。
-- 工具按钮尽量使用图标。
-- 卡片圆角控制在 8px 内。
-- 不做营销页，不做复杂设置页。
+## Interaction
 
+- Search uses a single input for quick library filtering and full-text search.
+- Full-text results show document title, path context, heading context, and a snippet.
+- Focus mode hides the library; the outline can stay visible based on the setting.
+- Rendered images open in a larger preview when clicked.
+- Switching documents while dirty asks for confirmation.
+
+## Visual Direction
+
+- Quiet document-tool layout, not a landing page.
+- Light gray app background and white reading surfaces.
+- Thin borders, 8px-or-less radii, compact controls, and high scan density.
+- Icon buttons for repeated actions.
+- Text should stay inside buttons and list rows across desktop and mobile widths.
