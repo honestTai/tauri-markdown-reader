@@ -25,7 +25,7 @@ export type ReadMode = 'desktop' | 'source' | 'edit'
 
 export type SortMode = 'updated' | 'name' | 'path'
 
-export type LibraryFilter = 'all' | 'current' | 'favorites' | 'recent'
+export type LibraryFilter = 'all' | 'current' | 'favorites' | 'pinned' | 'recent'
 
 export type MarkdownThemeId = 'green' | 'ink' | 'warm'
 
@@ -100,6 +100,7 @@ export interface ReaderState {
   reading_positions: Record<string, number>
   last_workspace: string
   last_file: string
+  last_read_mode: ReadMode
   focus_mode: boolean
   settings: ReaderSettings
 }

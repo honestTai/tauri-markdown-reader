@@ -6,11 +6,13 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    io::Write,
     path::{Path, PathBuf},
     process::Command,
+    sync::{Mutex, OnceLock},
     time::UNIX_EPOCH,
 };
+
+static WORKSPACE_ROOTS: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
 
 #[derive(Debug, Serialize)]
 struct ArticleSummary {
@@ -96,6 +98,7 @@ struct InsertImageAssetResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct ReaderSettings {
     default_workspace: String,
     default_read_mode: String,
@@ -121,6 +124,7 @@ impl Default for ReaderSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct ReaderState {
     recent_workspaces: Vec<String>,
     recent_files: Vec<String>,
@@ -129,6 +133,7 @@ struct ReaderState {
     reading_positions: HashMap<String, f64>,
     last_workspace: String,
     last_file: String,
+    last_read_mode: String,
     focus_mode: bool,
     settings: ReaderSettings,
 }
@@ -143,6 +148,7 @@ impl Default for ReaderState {
             reading_positions: HashMap::new(),
             last_workspace: String::new(),
             last_file: String::new(),
+            last_read_mode: "desktop".to_string(),
             focus_mode: false,
             settings: ReaderSettings::default(),
         }
@@ -156,7 +162,7 @@ fn initial_open_path() -> Option<String> {
 
 #[tauri::command]
 fn scan_workspace(workspace: String) -> Result<Vec<ArticleSummary>, String> {
-    let input = PathBuf::from(workspace);
+    let input = fs::canonicalize(PathBuf::from(workspace)).map_err(to_err)?;
     if input.is_file() {
         if !is_markdown_file(&input) {
             return Err("请选择 Markdown 文件。".to_string());
@@ -169,10 +175,11 @@ fn scan_workspace(workspace: String) -> Result<Vec<ArticleSummary>, String> {
     }
 
     let root = input;
+    register_workspace_root(&root)?;
     let mut articles = Vec::new();
     collect_markdown_files(&root, "文档", "document", true, &root, &mut articles)?;
 
-    articles.sort_by(|a, b| b.updated.cmp(&a.updated));
+    articles.sort_by_key(|article| std::cmp::Reverse(article.updated));
     Ok(articles)
 }
 
@@ -191,7 +198,10 @@ fn search_workspace(request: SearchWorkspaceRequest) -> Result<Vec<SearchResult>
         let lower_title = article.title.to_lowercase();
         let lower_file = article.file_name.to_lowercase();
         let lower_raw = raw.to_lowercase();
-        if !lower_title.contains(&query) && !lower_file.contains(&query) && !lower_raw.contains(&query) {
+        if !lower_title.contains(&query)
+            && !lower_file.contains(&query)
+            && !lower_raw.contains(&query)
+        {
             continue;
         }
 
@@ -238,14 +248,18 @@ fn search_workspace(request: SearchWorkspaceRequest) -> Result<Vec<SearchResult>
         });
     }
 
-    results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.relative_path.cmp(&b.relative_path)));
+    results.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then_with(|| a.relative_path.cmp(&b.relative_path))
+    });
     results.truncate(80);
     Ok(results)
 }
 
 #[tauri::command]
 fn read_article(path: String) -> Result<ArticlePayload, String> {
-    let article_path = PathBuf::from(&path);
+    let article_path = scoped_markdown_path(&path)?;
     let content = fs::read_to_string(&article_path).map_err(to_err)?;
     let base_dir = article_path
         .parent()
@@ -255,7 +269,7 @@ fn read_article(path: String) -> Result<ArticlePayload, String> {
     let missing_images = find_missing_images(&content, &base_dir)?;
 
     Ok(ArticlePayload {
-        path,
+        path: article_path.to_string_lossy().to_string(),
         base_dir: base_dir.to_string_lossy().to_string(),
         content,
         preview_content,
@@ -265,10 +279,10 @@ fn read_article(path: String) -> Result<ArticlePayload, String> {
 
 #[tauri::command]
 fn save_article(request: SaveArticleRequest) -> Result<ArticlePayload, String> {
-    let article_path = PathBuf::from(&request.path);
+    let article_path = scoped_markdown_path(&request.path)?;
     backup_article(&article_path)?;
     fs::write(&article_path, request.content).map_err(to_err)?;
-    read_article(request.path)
+    read_article(article_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -296,7 +310,7 @@ fn save_reader_state(mut state: ReaderState) -> Result<(), String> {
 
 #[tauri::command]
 fn preview_markdown_content(request: PreviewMarkdownRequest) -> Result<String, String> {
-    let article_path = PathBuf::from(&request.article_path);
+    let article_path = scoped_markdown_path(&request.article_path)?;
     let base_dir = article_path
         .parent()
         .ok_or_else(|| "无法识别文章目录".to_string())?
@@ -305,11 +319,10 @@ fn preview_markdown_content(request: PreviewMarkdownRequest) -> Result<String, S
 }
 
 #[tauri::command]
-fn insert_image_asset(request: InsertImageAssetRequest) -> Result<InsertImageAssetResponse, String> {
-    let article = PathBuf::from(&request.article_path);
-    if !is_markdown_file(&article) {
-        return Err("请先打开一个 Markdown 文件。".to_string());
-    }
+fn insert_image_asset(
+    request: InsertImageAssetRequest,
+) -> Result<InsertImageAssetResponse, String> {
+    let article = scoped_markdown_path(&request.article_path)?;
 
     let source = PathBuf::from(&request.image_path);
     if !source.is_file() {
@@ -321,7 +334,10 @@ fn insert_image_asset(request: InsertImageAssetRequest) -> Result<InsertImageAss
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.to_ascii_lowercase())
         .ok_or_else(|| "图片文件缺少扩展名。".to_string())?;
-    if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg") {
+    if !matches!(
+        extension.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg"
+    ) {
         return Err("仅支持 png、jpg、jpeg、gif、webp、svg 图片。".to_string());
     }
 
@@ -367,24 +383,8 @@ fn insert_image_asset(request: InsertImageAssetRequest) -> Result<InsertImageAss
 }
 
 #[tauri::command]
-fn append_build_log(entry: String) -> Result<(), String> {
-    let log_path = project_root().join("docs").join("BUILD_LOG.md");
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent).map_err(to_err)?;
-    }
-    fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-        .map_err(to_err)?
-        .write_all(format!("\n{}\n", entry).as_bytes())
-        .map_err(to_err)?;
-    Ok(())
-}
-
-#[tauri::command]
 fn save_reading_html(article_path: String, html: String) -> Result<String, String> {
-    let article = PathBuf::from(article_path);
+    let article = scoped_markdown_path(&article_path)?;
     let slug = article
         .file_stem()
         .and_then(|name| name.to_str())
@@ -403,12 +403,6 @@ fn save_reading_html(article_path: String, html: String) -> Result<String, Strin
 }
 
 #[tauri::command]
-fn read_binary_file(path: String) -> Result<String, String> {
-    let bytes = fs::read(PathBuf::from(path)).map_err(to_err)?;
-    Ok(general_purpose::STANDARD.encode(bytes))
-}
-
-#[tauri::command]
 fn save_binary_export(request: SaveBinaryExportRequest) -> Result<String, String> {
     let extension = request
         .extension
@@ -418,7 +412,7 @@ fn save_binary_export(request: SaveBinaryExportRequest) -> Result<String, String
         return Err("暂不支持该导出格式。".to_string());
     }
 
-    let article = PathBuf::from(request.article_path);
+    let article = scoped_markdown_path(&request.article_path)?;
     let slug = article
         .file_stem()
         .and_then(|name| name.to_str())
@@ -456,9 +450,7 @@ fn main() {
             save_reader_state,
             preview_markdown_content,
             insert_image_asset,
-            append_build_log,
             save_reading_html,
-            read_binary_file,
             save_binary_export
         ])
         .run(tauri::generate_context!())
@@ -502,10 +494,15 @@ fn inline_local_images(raw: &str, base_dir: &Path) -> Result<String, String> {
         let full = caps.get(0).map(|m| m.as_str()).unwrap_or_default();
         let alt = caps.get(1).map(|m| m.as_str()).unwrap_or_default();
         let src = caps.get(2).map(|m| m.as_str()).unwrap_or_default();
-        if src.starts_with("data:image/") || src.starts_with("http://") || src.starts_with("https://") {
+        if src.starts_with("data:image/")
+            || src.starts_with("http://")
+            || src.starts_with("https://")
+        {
             return full.to_string();
         }
-        let image_path = base_dir.join(src.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let Ok(image_path) = scoped_related_path(base_dir, src, true) else {
+            return full.to_string();
+        };
         match fs::read(&image_path) {
             Ok(bytes) => {
                 let mime = mime_type_for(&bytes, &image_path);
@@ -522,12 +519,23 @@ fn find_missing_images(raw: &str, base_dir: &Path) -> Result<Vec<MissingImage>, 
     let image_re = Regex::new(r#"!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)"#).map_err(to_err)?;
     let mut missing = Vec::new();
     for caps in image_re.captures_iter(raw) {
-        let alt = caps.get(1).map(|m| m.as_str()).unwrap_or_default().to_string();
-        let src = caps.get(2).map(|m| m.as_str()).unwrap_or_default().to_string();
-        if src.starts_with("data:image/") || src.starts_with("http://") || src.starts_with("https://") {
+        let alt = caps
+            .get(1)
+            .map(|m| m.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let src = caps
+            .get(2)
+            .map(|m| m.as_str())
+            .unwrap_or_default()
+            .to_string();
+        if src.starts_with("data:image/")
+            || src.starts_with("http://")
+            || src.starts_with("https://")
+        {
             continue;
         }
-        let image_path = base_dir.join(src.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let image_path = scoped_related_path(base_dir, &src, false)?;
         if !image_path.exists() {
             missing.push(MissingImage {
                 alt,
@@ -575,7 +583,104 @@ fn reader_state_path() -> Result<PathBuf, String> {
     Ok(base.join("Markdown Reader").join("reader-state-v2.json"))
 }
 
+fn workspace_registry() -> &'static Mutex<HashSet<PathBuf>> {
+    WORKSPACE_ROOTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn register_workspace_root(root: &Path) -> Result<(), String> {
+    let root = fs::canonicalize(root).map_err(to_err)?;
+    if !root.is_dir() {
+        return Err("请选择 Markdown 文件夹。".to_string());
+    }
+    workspace_registry().lock().map_err(to_err)?.insert(root);
+    Ok(())
+}
+
+fn scoped_markdown_path(path: &str) -> Result<PathBuf, String> {
+    let article_path = scoped_existing_file(path)?;
+    if !is_markdown_file(&article_path) {
+        return Err("请先打开一个 Markdown 文件。".to_string());
+    }
+    Ok(article_path)
+}
+
+fn scoped_existing_file(path: &str) -> Result<PathBuf, String> {
+    let file_path = fs::canonicalize(PathBuf::from(path)).map_err(to_err)?;
+    if !file_path.is_file() {
+        return Err("请选择有效文件。".to_string());
+    }
+    ensure_path_in_registered_workspace(&file_path)?;
+    Ok(file_path)
+}
+
+fn ensure_path_in_registered_workspace(path: &Path) -> Result<PathBuf, String> {
+    let canonical = if path.exists() {
+        fs::canonicalize(path).map_err(to_err)?
+    } else {
+        normalize_path(path)
+    };
+    let roots = workspace_registry().lock().map_err(to_err)?;
+    roots
+        .iter()
+        .filter(|root| canonical.starts_with(root))
+        .max_by_key(|root| root.components().count())
+        .cloned()
+        .ok_or_else(|| "路径不在当前已打开的 Markdown 工作区内。".to_string())
+}
+
+fn scoped_related_path(base_dir: &Path, src: &str, must_exist: bool) -> Result<PathBuf, String> {
+    if src.starts_with("data:image/") || src.starts_with("http://") || src.starts_with("https://") {
+        return Err("远程或 data 图片不需要本地解析。".to_string());
+    }
+    let relative = Path::new(src);
+    if relative.is_absolute()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::Prefix(_) | std::path::Component::RootDir
+            )
+        })
+    {
+        return Err("图片路径必须是当前文档内的相对路径。".to_string());
+    }
+    let base_dir = fs::canonicalize(base_dir).map_err(to_err)?;
+    ensure_path_in_registered_workspace(&base_dir)?;
+    let normalized =
+        normalize_path(&base_dir.join(src.replace('/', std::path::MAIN_SEPARATOR_STR)));
+    ensure_path_in_registered_workspace(&normalized)?;
+    if must_exist {
+        let existing = fs::canonicalize(&normalized).map_err(to_err)?;
+        ensure_path_in_registered_workspace(&existing)?;
+        Ok(existing)
+    } else {
+        Ok(normalized)
+    }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized
+}
+
 fn trim_reader_state(state: &mut ReaderState) {
+    if !matches!(
+        state.settings.default_read_mode.as_str(),
+        "desktop" | "source" | "edit"
+    ) {
+        state.settings.default_read_mode = "desktop".to_string();
+    }
+    if !matches!(state.last_read_mode.as_str(), "desktop" | "source" | "edit") {
+        state.last_read_mode = state.settings.default_read_mode.clone();
+    }
     dedupe_trim(&mut state.recent_workspaces, 20);
     dedupe_trim(&mut state.recent_files, 50);
     dedupe_trim(&mut state.favorites, 500);
@@ -587,7 +692,9 @@ fn trim_reader_state(state: &mut ReaderState) {
         .chain(state.pinned.iter())
         .cloned()
         .collect();
-    state.reading_positions.retain(|path, _| known_files.contains(path) || Path::new(path).exists());
+    state
+        .reading_positions
+        .retain(|path, _| known_files.contains(path) || Path::new(path).exists());
 }
 
 fn dedupe_trim(values: &mut Vec<String>, max: usize) {
@@ -629,7 +736,11 @@ fn mime_type_for(bytes: &[u8], path: &Path) -> &'static str {
     if bytes.starts_with(&[0x52, 0x49, 0x46, 0x46]) {
         return "image/webp";
     }
-    match path.extension().and_then(|ext| ext.to_str()).unwrap_or_default() {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+    {
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "webp" => "image/webp",
@@ -639,27 +750,7 @@ fn mime_type_for(bytes: &[u8], path: &Path) -> &'static str {
 }
 
 fn workspace_root_for_article(article: &Path) -> Result<PathBuf, String> {
-    let mut current = article.parent();
-    while let Some(path) = current {
-        if path.file_name().and_then(|name| name.to_str()) == Some("articles") {
-            return path
-                .parent()
-                .map(Path::to_path_buf)
-                .ok_or_else(|| "无法识别文章工作区".to_string());
-        }
-        current = path.parent();
-    }
-    article
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "无法识别文章工作区".to_string())
-}
-
-fn project_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")))
-        .to_path_buf()
+    ensure_path_in_registered_workspace(article)
 }
 
 fn initial_open_path_from_args<I, S>(args: I) -> Option<String>
@@ -679,25 +770,27 @@ where
 
 fn open_path(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
-    let status = {
-        let target = path.to_string_lossy().to_string();
-        Command::new("cmd")
-            .args(["/C", "start", ""])
-            .arg(target)
-            .status()
-            .map_err(to_err)?
-    };
+    let status = Command::new("explorer")
+        .arg(path)
+        .status()
+        .map_err(to_err)?;
 
     #[cfg(target_os = "macos")]
     let status = Command::new("open").arg(path).status().map_err(to_err)?;
 
     #[cfg(all(unix, not(target_os = "macos")))]
-    let status = Command::new("xdg-open").arg(path).status().map_err(to_err)?;
+    let status = Command::new("xdg-open")
+        .arg(path)
+        .status()
+        .map_err(to_err)?;
 
     if status.success() {
         Ok(())
     } else {
-        Err(format!("文件已生成，但打开失败：{}", path.to_string_lossy()))
+        Err(format!(
+            "文件已生成，但打开失败：{}",
+            path.to_string_lossy()
+        ))
     }
 }
 
@@ -731,7 +824,12 @@ fn collect_markdown_files(
     Ok(())
 }
 
-fn summarize_markdown_file(path: &Path, group: &str, status: &str, root: &Path) -> Result<ArticleSummary, String> {
+fn summarize_markdown_file(
+    path: &Path,
+    group: &str,
+    status: &str,
+    root: &Path,
+) -> Result<ArticleSummary, String> {
     let raw = fs::read_to_string(path).unwrap_or_default();
     let (title, digest) = parse_frontmatter(&raw);
     let metadata = fs::metadata(path).map_err(to_err)?;
@@ -782,7 +880,15 @@ fn is_markdown_file(path: &Path) -> bool {
 }
 
 fn should_enter_dir(path: &Path) -> bool {
-    let ignored = [".git", "node_modules", "target", "dist", "dist-ssr"];
+    let ignored = [
+        ".git",
+        ".reader-backups",
+        "exports",
+        "node_modules",
+        "target",
+        "dist",
+        "dist-ssr",
+    ];
     path.file_name()
         .and_then(|name| name.to_str())
         .map(|name| !ignored.contains(&name))
@@ -840,7 +946,10 @@ mod tests {
     fn scans_markdown_workspace_recursively() {
         let root = fixture_root();
         let articles = scan_workspace(root.to_string_lossy().to_string()).expect("scan workspace");
-        assert!(!articles.is_empty(), "default workspace should contain markdown articles");
+        assert!(
+            !articles.is_empty(),
+            "default workspace should contain markdown articles"
+        );
         assert!(
             articles.iter().all(|article| article.status == "document"),
             "V2 scans folders as a generic document library"
@@ -853,7 +962,10 @@ mod tests {
         let articles = scan_workspace(root.to_string_lossy().to_string()).expect("scan workspace");
         let first = articles.first().expect("at least one article");
         let payload = read_article(first.path.clone()).expect("read article");
-        assert!(!payload.content.trim().is_empty(), "article content should not be empty");
+        assert!(
+            !payload.content.trim().is_empty(),
+            "article content should not be empty"
+        );
         assert!(
             !payload.preview_content.trim().is_empty(),
             "preview content should not be empty"
@@ -863,7 +975,11 @@ mod tests {
     #[test]
     fn accepts_articles_subdirectory_as_workspace_input() {
         let root = fixture_root();
-        let drafts_dir = root.join("articles").join("drafts").to_string_lossy().to_string();
+        let drafts_dir = root
+            .join("articles")
+            .join("drafts")
+            .to_string_lossy()
+            .to_string();
         let articles = scan_workspace(drafts_dir).expect("scan drafts dir");
         assert!(
             !articles.is_empty(),
@@ -944,6 +1060,7 @@ mod tests {
         let image_path = root.join("source image.png");
         fs::write(&article_path, "# Note").expect("write article");
         fs::write(&image_path, [0x89, 0x50, 0x4e, 0x47]).expect("write image");
+        scan_workspace(root.to_string_lossy().to_string()).expect("register root");
 
         let inserted = insert_image_asset(InsertImageAssetRequest {
             article_path: article_path.to_string_lossy().to_string(),
@@ -952,7 +1069,10 @@ mod tests {
         .expect("insert image");
 
         assert_eq!(inserted.relative_path, "note-assets/source-image.png");
-        assert_eq!(inserted.markdown, "![source image](note-assets/source-image.png)");
+        assert_eq!(
+            inserted.markdown,
+            "![source image](note-assets/source-image.png)"
+        );
         assert!(root.join("note-assets").join("source-image.png").exists());
     }
 
@@ -970,6 +1090,7 @@ mod tests {
         let article_path = root.join("note.md");
         fs::write(&article_path, "# Note").expect("write article");
         fs::write(assets.join("image.png"), [0x89, 0x50, 0x4e, 0x47]).expect("write image");
+        scan_workspace(root.to_string_lossy().to_string()).expect("register root");
 
         let preview = preview_markdown_content(PreviewMarkdownRequest {
             article_path: article_path.to_string_lossy().to_string(),
@@ -978,5 +1099,52 @@ mod tests {
         .expect("preview markdown");
 
         assert!(preview.contains("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn uses_registered_workspace_root_for_nested_exports() {
+        let root = fixture_root();
+        let nested_workspace = root.join("articles").join("drafts");
+        let article_path = nested_workspace.join("sample.md");
+        scan_workspace(nested_workspace.to_string_lossy().to_string())
+            .expect("register nested root");
+
+        let export_root = workspace_root_for_article(&article_path).expect("resolve export root");
+
+        assert_eq!(
+            export_root,
+            fs::canonicalize(nested_workspace).expect("canonical nested root")
+        );
+    }
+
+    #[test]
+    fn rejects_article_reads_outside_registered_workspace() {
+        let root = std::env::temp_dir().join(format!(
+            "tauri-reader-scoped-root-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let outside = std::env::temp_dir().join(format!(
+            "tauri-reader-scoped-outside-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create root");
+        fs::create_dir_all(&outside).expect("create outside");
+        fs::write(root.join("note.md"), "# Note").expect("write note");
+        let outside_article = outside.join("outside.md");
+        fs::write(&outside_article, "# Outside").expect("write outside");
+        scan_workspace(root.to_string_lossy().to_string()).expect("register root");
+
+        let result = read_article(outside_article.to_string_lossy().to_string());
+
+        assert!(
+            result.is_err(),
+            "unregistered markdown path should be rejected"
+        );
     }
 }
