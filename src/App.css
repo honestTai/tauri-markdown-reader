@@ -175,7 +175,7 @@ button:hover:not(:disabled) {
 .sidebar {
   border-right: 1px solid #e5e7eb;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .sidebar-head {
@@ -228,7 +228,7 @@ button:hover:not(:disabled) {
 .article-groups {
   min-height: 0;
   overflow: auto;
-  padding: 0 8px 18px;
+  padding: 8px 8px 18px;
 }
 
 .group-title {
@@ -1078,9 +1078,10 @@ button:hover:not(:disabled) {
 }
 
 .library-controls {
-  padding: 0 12px 10px;
+  padding: 0 12px 12px;
   display: grid;
   gap: 8px;
+  border-bottom: 1px solid #edf0f2;
 }
 
 .segmented {
@@ -1465,6 +1466,7 @@ button:hover:not(:disabled) {
 
   .sidebar {
     border-right: 0;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
   }
 
   .right-panel {
