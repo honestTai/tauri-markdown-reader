@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import type { ArticleStats, OutlineItem, ParsedArticle } from './types'
 
@@ -18,7 +19,8 @@ export function parseArticle(raw: string): ParsedArticle {
 }
 
 export function markdownToHtml(markdown: string): string {
-  return addHeadingAnchors(marked.parse(markdown, { async: false }) as string)
+  const rawHtml = marked.parse(markdown, { async: false }) as string
+  return sanitizeMarkdownHtml(addHeadingAnchors(rawHtml))
 }
 
 export function getArticleStats(raw: string): ArticleStats {
@@ -61,6 +63,7 @@ export function buildReadingHtml(raw: string): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline';" />
   <title>${escapeHtml(title)}</title>
   <style>
     body{margin:0;background:#eef1f4;color:#26323d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
@@ -81,6 +84,33 @@ export function buildReadingHtml(raw: string): string {
   </main>
 </body>
 </html>`
+}
+
+function sanitizeMarkdownHtml(html: string) {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: [
+      'base',
+      'button',
+      'embed',
+      'form',
+      'iframe',
+      'input',
+      'link',
+      'meta',
+      'object',
+      'option',
+      'script',
+      'select',
+      'style',
+      'textarea',
+    ],
+    FORBID_ATTR: ['formaction', 'ping', 'srcdoc', 'srcset', 'style'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|data:image\/(?:gif|jpeg|jpg|png|webp);base64,|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
+  }).replace(
+    /<img\b([^>]*?)\bsrc=(["'])(https?:\/\/[^"']+)\2([^>]*)>/gi,
+    '<img$1$4>',
+  )
 }
 
 function addHeadingAnchors(html: string) {

@@ -348,6 +348,90 @@ button:hover:not(:disabled) {
   box-shadow: none;
 }
 
+.article-style-codex {
+  --md-font: Aptos, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #2f6f4e;
+  --md-body-size: 16px;
+  --md-line-height: 1.88;
+}
+
+.article-style-clean {
+  --md-font: Calibri, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #1f2933;
+  --md-body-size: 16px;
+  --md-line-height: 1.76;
+}
+
+.article-style-serif {
+  --md-font: Georgia, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #355c7d;
+  --md-body-size: 17px;
+  --md-line-height: 1.94;
+}
+
+.article-style-song {
+  --md-font: SimSun, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #374151;
+  --md-body-size: 16px;
+  --md-line-height: 2;
+}
+
+.article-style-hei {
+  --md-font: SimHei, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #2563eb;
+  --md-body-size: 16px;
+  --md-line-height: 1.82;
+}
+
+.article-style-yahei {
+  --md-font: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #1f7a4b;
+  --md-body-size: 16px;
+  --md-line-height: 1.88;
+}
+
+.article-style-kai {
+  --md-font: KaiTi, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #9a650f;
+  --md-body-size: 17px;
+  --md-line-height: 2.06;
+}
+
+.article-style-mono {
+  --md-font: Consolas, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #4b5563;
+  --md-body-size: 15px;
+  --md-line-height: 1.76;
+}
+
+.article-style-report {
+  --md-font: DengXian, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #0f766e;
+  --md-body-size: 16px;
+  --md-line-height: 1.88;
+}
+
+.article-style-book {
+  --md-font: FangSong, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #6b4f3a;
+  --md-body-size: 17px;
+  --md-line-height: 2.12;
+}
+
+.article-style-compact {
+  --md-font: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #475569;
+  --md-body-size: 14px;
+  --md-line-height: 1.55;
+}
+
+.article-style-presentation {
+  --md-font: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-accent: #7c3aed;
+  --md-body-size: 17px;
+  --md-line-height: 2;
+}
+
 .article-title {
   margin-bottom: 24px;
   padding-bottom: 18px;
@@ -703,6 +787,23 @@ button:hover:not(:disabled) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.outline-level-2 {
+  padding-left: 22px;
+}
+
+.outline-level-3 {
+  padding-left: 34px;
+}
+
+.outline-level-4 {
+  padding-left: 46px;
+}
+
+.outline-level-5,
+.outline-level-6 {
+  padding-left: 58px;
 }
 
 .export-panel {

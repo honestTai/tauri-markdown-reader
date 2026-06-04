@@ -12,12 +12,14 @@
     "tauri:build": "tauri build",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "audit": "pnpm audit --audit-level high",
     "preview": "vite preview"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "docx": "^9.7.1",
+    "dompurify": "^3.4.8",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.17.0",
     "marked": "^18.0.4",
