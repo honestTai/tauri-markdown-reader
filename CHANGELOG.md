@@ -23,6 +23,7 @@
 
 ### Changed
 
+- Refined README and promotion copy around the "local project Markdown document library" positioning.
 - Split the React app into focused reader, library, quick-open, export, i18n, and search modules.
 - Refreshed README content to match the latest Markdown library, search, export, security, and CI capabilities.
 - Hardened Markdown rendering with DOMPurify and restored a restrictive Tauri CSP.

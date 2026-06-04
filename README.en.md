@@ -2,11 +2,15 @@
 
 [中文](README.md) | **English**
 
-Local-first desktop Markdown reader and document library built with Tauri, React, and TypeScript.
+[![Release](https://img.shields.io/github/v/release/honestTai/tauri-markdown-reader?label=release)](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
+[![License](https://img.shields.io/github/license/honestTai/tauri-markdown-reader)](LICENSE)
+[![Built with Tauri](https://img.shields.io/badge/Tauri-2.x-24c8db)](https://tauri.app/)
 
-Markdown Reader is for reading project documents, PRDs, README files, meeting notes, troubleshooting records, and personal knowledge bases. Open a Markdown folder or a single `.md` file, then turn scattered files into a searchable, pinnable, exportable local document library.
+A local project Markdown document library that does not require opening an IDE.
 
-It is not a cloud note-taking platform or an IDE replacement. It is a calm desktop reading workbench: files stay local, body text is searchable, outlines are clickable, reading positions are restored, and light editing plus Word/PDF/HTML export are always close by.
+Markdown Reader is for reading PRDs, README files, technical plans, meeting notes, troubleshooting records, and personal knowledge bases. Open a Markdown folder or a single `.md` file, then turn scattered files into a searchable, pinnable, exportable local document library.
+
+It is not another Markdown editor or a cloud note-taking platform. It is a calm desktop reading workbench: files stay local, body text is searchable, outlines are clickable, reading positions are restored, and light editing plus Word/PDF/HTML export are always close by.
 
 ## Demo
 
@@ -26,6 +30,15 @@ It is not a cloud note-taking platform or an IDE replacement. It is a calm deskt
 - Security hardening: Markdown rendering is sanitized with DOMPurify, Tauri uses a restrictive CSP, and file commands are scoped to registered Markdown workspaces.
 - Automated checks: CI covers frontend lint/build/audit and Rust fmt/clippy/test.
 
+## Why Not Typora / Obsidian / VS Code
+
+Those tools are great, but Markdown Reader is aimed at a different job:
+
+- Typora is great for focused writing; Markdown Reader is for reading and searching a whole project folder as a document library.
+- Obsidian is great for personal knowledge graphs; Markdown Reader is for opening existing repositories, delivery folders, and document directories directly.
+- VS Code is great for development; Markdown Reader is for reading PRDs, README files, troubleshooting logs, and technical plans without entering an IDE.
+- The core job is not "write one Markdown file"; it is "find, read, reuse, and export many existing Markdown documents quickly."
+
 ## Screenshots
 
 ### Chinese UI
@@ -43,6 +56,13 @@ It is not a cloud note-taking platform or an IDE replacement. It is a calm deskt
 - Browse Markdown documentation in a code repository without opening an IDE.
 - Turn a local Markdown knowledge base into a searchable desktop library.
 - Export Markdown content to Word, PDF, or reading HTML.
+
+## Who It Is For
+
+- Developers: quickly read README files, design docs, troubleshooting logs, and Markdown docs inside repositories.
+- Product managers: browse PRDs, requirement notes, meeting records, and delivery documents in one local library.
+- Technical writers: manage local Markdown drafts and export to Word, PDF, or HTML.
+- Team leads: review project documentation without being pulled into IDE and source-code context.
 
 ## Download
 
