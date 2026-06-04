@@ -1,17 +1,30 @@
 [package]
 name = "tauri-markdown-reader"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local Markdown reading and multi-platform preview desktop app"
 authors = ["Codex"]
 edition = "2021"
+default-run = "tauri-markdown-reader"
+
+[[bin]]
+name = "tauri-markdown-reader"
+path = "src/main.rs"
+
+[[bin]]
+name = "md-reader"
+path = "src/bin/md-reader.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 base64 = "0.22"
+docx-lite = "0.2"
+pdf-extract = "0.10"
+quick-xml = "0.36"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+zip = { version = "0.6", default-features = false, features = ["deflate"] }

@@ -6,38 +6,30 @@
 [![License](https://img.shields.io/github/license/honestTai/tauri-markdown-reader)](LICENSE)
 [![Built with Tauri](https://img.shields.io/badge/Tauri-2.x-24c8db)](https://tauri.app/)
 
-A local project Markdown document library that does not require opening an IDE.
+A local-first Markdown document library for reading, organizing, importing, and exporting project docs.
 
-Markdown Reader is for reading PRDs, README files, technical plans, meeting notes, troubleshooting records, and personal knowledge bases. Open a Markdown folder or a single `.md` file, then turn scattered files into a searchable, pinnable, exportable local document library.
-
-It is not another Markdown editor or a cloud note-taking platform. It is a calm desktop reading workbench: files stay local, body text is searchable, outlines are clickable, reading positions are restored, and light editing plus Word/PDF/HTML export are always close by.
+Markdown Reader is not a cloud note app or a heavy IDE. It is a desktop document workbench: open a project folder or one Markdown file, then search README files, PRDs, meeting notes, troubleshooting records, technical plans, and delivery materials. Files stay on disk; the app focuses on reading, light editing, import conversion, and export.
 
 ## Demo
 
 ![Markdown Reader running demo](docs/assets/markdown-reader-demo.gif)
 
-## Latest Capabilities
+## V3 Highlights
 
-- Local document library: open a folder or a single Markdown file, recursively scan regular document folders, and ignore build directories.
-- Full-text search: search filenames, titles, frontmatter, body text, and snippets, then open matched documents directly.
-- Quick open: a dedicated quick-open flow isolated from sidebar search for fast document jumps.
-- Reading experience: three-column workbench, right-side outline, word count, reading time, image resource status, and per-document scroll memory.
-- Favorites and pinned documents: stored in app state without changing source Markdown files.
-- Focus mode: hide the library and optionally keep the right outline panel.
-- Light editing: source editing, unsaved-change prompts, save-before backup, local image insertion, and live preview.
-- Multiple exports: Word `.docx`, PDF, Markdown, plain text, and reading HTML.
-- Chinese and English UI: switch the application interface between Chinese and English.
-- Security hardening: Markdown rendering is sanitized with DOMPurify, Tauri uses a restrictive CSP, and file commands are scoped to registered Markdown workspaces.
-- Automated checks: CI covers frontend lint/build/audit and Rust fmt/clippy/test.
+- Open a folder or one Markdown file and recursively scan common document directories.
+- Search filenames, headings, frontmatter, and body snippets.
+- Quick open, recent files, favorites, pinned docs, and per-document scroll memory.
+- Read, source, and edit views with save-before backup.
+- Local image insertion, pasted screenshots, dropped images, and missing-image checks.
+- PDF to Markdown draft conversion for selectable-text PDFs.
+- DOCX to Markdown draft conversion with headings, lists, tables, and images where possible.
+- Drag folders, Markdown files, PDF files, DOCX files, or images into the window.
+- Export Word, PDF, reading HTML, and copy Markdown, plain text, or HTML.
+- The GUI installer ships `md-reader.exe` for system shells, Codex, and other agents.
+- Chinese / English interface switching.
+- DOMPurify Markdown sanitization, strict CSP, and workspace-scoped file commands.
 
-## Why Not Typora / Obsidian / VS Code
-
-Those tools are great, but Markdown Reader is aimed at a different job:
-
-- Typora is great for focused writing; Markdown Reader is for reading and searching a whole project folder as a document library.
-- Obsidian is great for personal knowledge graphs; Markdown Reader is for opening existing repositories, delivery folders, and document directories directly.
-- VS Code is great for development; Markdown Reader is for reading PRDs, README files, troubleshooting logs, and technical plans without entering an IDE.
-- The core job is not "write one Markdown file"; it is "find, read, reuse, and export many existing Markdown documents quickly."
+V3 no longer keeps an embedded terminal. The real terminal path was not reliable enough in the Tauri WebView2/xterm rendering chain, so future Agent/V4 work should call the external CLI first.
 
 ## Screenshots
 
@@ -51,18 +43,12 @@ Those tools are great, but Markdown Reader is aimed at a different job:
 
 ## Use Cases
 
-- Manage project README files, PRDs, technical plans, and changelogs.
-- Read meeting notes, troubleshooting logs, retrospectives, and delivery documents.
-- Browse Markdown documentation in a code repository without opening an IDE.
-- Turn a local Markdown knowledge base into a searchable desktop library.
-- Export Markdown content to Word, PDF, or reading HTML.
-
-## Who It Is For
-
-- Developers: quickly read README files, design docs, troubleshooting logs, and Markdown docs inside repositories.
-- Product managers: browse PRDs, requirement notes, meeting records, and delivery documents in one local library.
-- Technical writers: manage local Markdown drafts and export to Word, PDF, or HTML.
-- Team leads: review project documentation without being pulled into IDE and source-code context.
+- Read project README files, PRDs, technical plans, and changelogs without opening an IDE.
+- Search meeting notes, troubleshooting records, retrospectives, and delivery folders.
+- Turn a local Markdown knowledge base into a searchable, pinnable, exportable library.
+- Convert PDF or DOCX files into Markdown drafts before editing.
+- Deliver Markdown content as Word, PDF, or reading HTML.
+- Let Codex, Claude Code, and other tools read, convert, and search local docs through the CLI.
 
 ## Download
 
@@ -72,11 +58,25 @@ Release builds are published on GitHub Releases:
 
 Current build targets:
 
-- Windows x64: `.exe` and `.msi`
+- Windows x64: NSIS `.exe` installer and `.msi`
 - macOS Intel: `.app.tar.gz`
 - macOS Apple Silicon: `.app.tar.gz`
 
 If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
+
+## CLI
+
+The GUI installer also ships `md-reader.exe`. You can also build and run it locally:
+
+```bash
+cargo build --manifest-path src-tauri/Cargo.toml --release --bin md-reader
+src-tauri/target/release/md-reader.exe convert input.docx --to md --out ./output --json
+src-tauri/target/release/md-reader.exe inspect input.pdf --json
+src-tauri/target/release/md-reader.exe search ./docs --query "keyword" --json
+src-tauri/target/release/md-reader.exe read ./docs/example.md --json
+```
+
+DOCX conversion writes images to a Markdown-matching `.assets` folder, which keeps the result editable and useful for local agent workflows.
 
 ## Local Development
 
@@ -98,11 +98,11 @@ Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local mac
 Push a `v*` tag to create a GitHub Release:
 
 ```bash
-git tag v0.2.0
-git push origin main v0.2.0
+git tag v0.3.0
+git push origin main v0.3.0
 ```
 
-The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives, then uploads them to the matching GitHub Release.
+The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives and uploads them to the matching Release. Current Windows local bundles are also uploaded manually as release assets.
 
 ## Promotion Assets
 

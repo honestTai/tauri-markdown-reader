@@ -97,6 +97,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Download packaged bundles
         uses: actions/download-artifact@v4
         with:
@@ -107,55 +110,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          cat > RELEASE_NOTES.md <<'NOTES'
-          ## 中文
+          notes_file="docs/RELEASE_NOTES_${GITHUB_REF_NAME}.md"
+          if [ -f "$notes_file" ]; then
+            cp "$notes_file" RELEASE_NOTES.md
+          else
+            cat > RELEASE_NOTES.md <<NOTES
+          Markdown Reader ${GITHUB_REF_NAME}
 
-          Markdown Reader v0.2.0 是一个本地优先的桌面 Markdown 阅读器和文档资料库，面向项目文档、PRD、README、会议记录、排障笔记和个人知识库。
-
-          ### 新增与改进
-
-          - 本地文档库：打开目录或单个 Markdown 文件，递归扫描常规文档目录，并自动忽略构建目录。
-          - 全文搜索：覆盖文件名、标题、frontmatter、正文和片段预览，搜索结果可直接打开命中文档。
-          - 快速打开：独立于侧栏搜索的 quick open，适合在大量文档中快速跳转。
-          - 阅读体验：三栏工作台、右侧大纲、字数统计、阅读时间、图片资源状态和每篇文档的滚动位置记忆。
-          - 收藏和置顶：状态保存在应用数据中，不会修改原 Markdown 文件。
-          - 专注模式：可隐藏文档库，并按设置保留或隐藏右侧大纲。
-          - 轻量编辑：支持源码编辑、未保存提示、保存前备份、本地图片插入和自动预览。
-          - 多格式导出：支持 Word `.docx`、PDF、Markdown、纯文本和阅读 HTML。
-          - 中英文界面与中英文 README：方便国内外用户快速了解和使用。
-          - 安全加固：Markdown 渲染经过 DOMPurify 净化，Tauri 使用严格 CSP，文件命令限制在已注册 Markdown 工作区内。
-          - 自动检查：CI 覆盖前端 lint/build/audit，以及 Rust fmt/clippy/test。
-
-          - Windows x64: `.exe` 和 `.msi`
-          - macOS Intel: `.app.tar.gz`
-          - macOS Apple Silicon: `.app.tar.gz`
-
-          macOS 版本未做 Apple 签名和公证时，首次打开可能需要在 Finder 中右键应用并选择“打开”。
-
-          ## English
-
-          Markdown Reader v0.2.0 is a local-first desktop Markdown reader and document library for project documents, PRDs, README files, meeting notes, troubleshooting records, and personal knowledge bases.
-
-          ### Added and changed
-
-          - Local document library: open a folder or a single Markdown file, recursively scan regular document folders, and ignore build directories.
-          - Full-text search: search filenames, titles, frontmatter, body text, and snippets, then open matched documents directly.
-          - Quick open: a dedicated quick-open flow isolated from sidebar search for fast document jumps.
-          - Reading experience: three-column workbench, right-side outline, word count, reading time, image resource status, and per-document scroll memory.
-          - Favorites and pinned documents: stored in app state without changing source Markdown files.
-          - Focus mode: hide the library and optionally keep the right outline panel.
-          - Light editing: source editing, unsaved-change prompts, save-before backup, local image insertion, and live preview.
-          - Multiple exports: Word `.docx`, PDF, Markdown, plain text, and reading HTML.
-          - Chinese / English UI plus bilingual README files for local and international users.
-          - Security hardening: Markdown rendering is sanitized with DOMPurify, Tauri uses a restrictive CSP, and file commands are scoped to registered Markdown workspaces.
-          - Automated checks: CI covers frontend lint/build/audit and Rust fmt/clippy/test.
-
-          - Windows x64: `.exe` and `.msi`
-          - macOS Intel: `.app.tar.gz`
-          - macOS Apple Silicon: `.app.tar.gz`
-
-          If the macOS build is not Apple-signed or notarized, first launch may require right-clicking the app in Finder and choosing "Open".
+          See README.md and CHANGELOG.md for release details.
           NOTES
+          fi
 
           mapfile -t assets < <(find release-assets -type f | sort)
           if [ "${#assets[@]}" -eq 0 ]; then

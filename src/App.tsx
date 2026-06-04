@@ -5,11 +5,15 @@ import {
   Copy,
   Download,
   FileDown,
+  FileInput,
   FileText,
+  FileUp,
   FolderOpen,
+  HelpCircle,
   Image as ImageIcon,
   Languages,
   ListTree,
+  Loader2,
   Maximize2,
   Minimize2,
   Monitor,
@@ -27,6 +31,7 @@ import {
   X,
 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
 import { downloadBase64File, exportFileName, markdownToPlainText, readBundledPdfFont } from './exportHelpers'
@@ -59,6 +64,8 @@ import type {
   ArticlePayload,
   ArticleStats,
   ArticleSummary,
+  ImportDocxResponse,
+  ImportPdfResponse,
   LibraryFilter,
   MissingImage,
   OutlineItem,
@@ -76,6 +83,24 @@ interface InsertImageAssetResponse {
   relativePath: string
 }
 
+interface DroppedPathInfo {
+  path: string
+  parent: string
+  kind: 'directory' | 'file' | 'unknown'
+  extension: string
+}
+
+type ImageMarkdownSource =
+  | { kind: 'path'; path: string }
+  | { kind: 'bytes'; fileName: string; mimeType: string; contentBase64: string }
+
+interface EditorInsertion {
+  id: number
+  markdown: string
+}
+
+type InternalWindow = 'help' | null
+
 function App() {
   const [workspace, setWorkspace] = useState('')
   const [articles, setArticles] = useState<ArticleSummary[]>([])
@@ -92,15 +117,20 @@ function App() {
   const [sortMode, setSortMode] = useState<SortMode>('updated')
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
   const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false)
+  const [internalWindow, setInternalWindow] = useState<InternalWindow>(null)
   const [wordStyle, setWordStyle] = useState<WordStyleId>('codex')
   const [language, setLanguage] = useState<Language>('zh')
   const [readerState, setReaderState] = useState<ReaderState>(defaultReaderState)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState<'html' | 'word' | 'pdf' | null>(null)
+  const [importingPdf, setImportingPdf] = useState(false)
+  const [importingDocx, setImportingDocx] = useState(false)
   const [notice, setNotice] = useState('')
   const [imagePreview, setImagePreview] = useState('')
+  const [pendingEditorInsertion, setPendingEditorInsertion] = useState<EditorInsertion | null>(null)
   const readerStateRef = useRef<ReaderState>(defaultReaderState)
   const text = uiText[language]
   const readerScrollRef = useRef<HTMLElement | null>(null)
@@ -228,16 +258,11 @@ function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const key = event.key.toLowerCase()
-      if ((event.ctrlKey || event.metaKey) && key === 'p') {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && (key === 'p' || key === 'k')) {
         event.preventDefault()
         openQuickOpen()
       }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'f') {
-        event.preventDefault()
-        setIsSidebarOpen(true)
-        window.setTimeout(() => document.querySelector<HTMLInputElement>('.search-box input')?.focus(), 0)
-      }
-      if ((event.ctrlKey || event.metaKey) && key === 'f') {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === 'f') {
         event.preventDefault()
         setIsSidebarOpen(true)
         window.setTimeout(() => document.querySelector<HTMLInputElement>('.search-box input')?.focus(), 0)
@@ -250,9 +275,33 @@ function App() {
         event.preventDefault()
         void chooseWorkspace()
       }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'p') {
+        event.preventDefault()
+        void importPdfDraft()
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'd') {
+        event.preventDefault()
+        void importDocxDraft()
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'i') {
+        event.preventDefault()
+        void insertImageFromShortcut()
+      }
       if ((event.ctrlKey || event.metaKey) && key === 's') {
         event.preventDefault()
         void saveMarkdown()
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === '1') {
+        event.preventDefault()
+        changeReadMode('desktop')
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === '2') {
+        event.preventDefault()
+        changeReadMode('source')
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === '3') {
+        event.preventDefault()
+        changeReadMode('edit')
       }
       if ((event.ctrlKey || event.metaKey) && key === 'e') {
         event.preventDefault()
@@ -269,6 +318,29 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
+  })
+
+  useEffect(() => {
+    if (!isTauri()) return undefined
+    let unlisten: (() => void) | null = null
+    let disposed = false
+
+    void getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type === 'drop') {
+        void handleDroppedPaths(event.payload.paths)
+      }
+    }).then((nextUnlisten) => {
+      if (disposed) {
+        nextUnlisten()
+      } else {
+        unlisten = nextUnlisten
+      }
+    })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
   })
 
   async function bootstrap() {
@@ -337,12 +409,12 @@ function App() {
     return persistState(next)
   }
 
-  async function loadArticles(root = workspace, pathToSelect = selectedPath, state = readerState) {
+  async function loadArticles(root = workspace, pathToSelect = selectedPath, state = readerState, ask = true) {
     if (!root.trim()) {
       setNotice(text.choosePathFirst)
       return
     }
-    if (!confirmDiscard()) return
+    if (ask && !confirmDiscard()) return
     setLoading(true)
     try {
       const items = isTauri()
@@ -422,6 +494,128 @@ function App() {
     }
   }
 
+  async function handleDroppedPaths(paths: string[]) {
+    if (!paths.length) return
+    const imageMarkdown: string[] = []
+    for (const path of paths) {
+      const info = await invoke<DroppedPathInfo>('describe_dropped_path', { path }).catch((error) => {
+        setNotice(`${text.dropFailed}: ${String(error)}`)
+        return null
+      })
+      if (!info) continue
+
+      if (info.kind === 'directory') {
+        if (!confirmDiscard()) return
+        setWorkspace(info.path)
+        await loadArticles(info.path, '', readerStateRef.current, false)
+        continue
+      }
+
+      if (info.kind !== 'file') {
+        setNotice(text.unsupportedDrop)
+        continue
+      }
+
+      if (isMarkdownExtension(info.extension)) {
+        if (!confirmDiscard()) return
+        const root = info.parent || info.path
+        setWorkspace(root)
+        await loadArticles(root, info.path, readerStateRef.current, false)
+        continue
+      }
+
+      if (info.extension === 'pdf') {
+        await convertPdfDraft(info.path)
+        continue
+      }
+
+      if (info.extension === 'docx') {
+        await convertDocxDraft(info.path)
+        continue
+      }
+
+      if (isImageExtension(info.extension)) {
+        const markdown = await requestImageMarkdown({ kind: 'path', path: info.path })
+        if (markdown) imageMarkdown.push(markdown)
+        continue
+      }
+
+      setNotice(text.unsupportedDrop)
+    }
+
+    if (imageMarkdown.length) {
+      changeReadMode('edit')
+      setPendingEditorInsertion({
+        id: Date.now(),
+        markdown: imageMarkdown.join('\n'),
+      })
+    }
+  }
+
+  async function importPdfDraft() {
+    if (!isTauri()) {
+      setNotice(text.browserNoFile)
+      return
+    }
+    const selected = await open({
+      multiple: false,
+      title: text.pdfImportDialogTitle,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (typeof selected !== 'string') return
+    await convertPdfDraft(selected)
+  }
+
+  async function convertPdfDraft(selected: string) {
+    if (!confirmDiscard()) return
+    setImportingPdf(true)
+    try {
+      const result = await invoke<ImportPdfResponse>('import_pdf_as_markdown', {
+        request: { pdfPath: selected, workspace },
+      })
+      setWorkspace(result.workspace)
+      await loadArticles(result.workspace, result.markdownPath, readerStateRef.current, false)
+      setPanelTab('outline')
+      setNotice(text.pdfImportDone(result.pageCount, result.charCount))
+    } catch (error) {
+      setNotice(`${text.pdfImportFailed}: ${String(error)}`)
+    } finally {
+      setImportingPdf(false)
+    }
+  }
+
+  async function importDocxDraft() {
+    if (!isTauri()) {
+      setNotice(text.browserNoFile)
+      return
+    }
+    const selected = await open({
+      multiple: false,
+      title: text.docxImportDialogTitle,
+      filters: [{ name: 'Word', extensions: ['docx'] }],
+    })
+    if (typeof selected !== 'string') return
+    await convertDocxDraft(selected)
+  }
+
+  async function convertDocxDraft(selected: string) {
+    if (!confirmDiscard()) return
+    setImportingDocx(true)
+    try {
+      const result = await invoke<ImportDocxResponse>('import_docx_as_markdown', {
+        request: { docxPath: selected, workspace },
+      })
+      setWorkspace(result.workspace)
+      await loadArticles(result.workspace, result.markdownPath, readerStateRef.current, false)
+      setPanelTab('outline')
+      setNotice(text.docxImportDone(result.paragraphCount, result.tableCount, result.charCount, result.imageCount))
+    } catch (error) {
+      setNotice(`${text.docxImportFailed}: ${String(error)}`)
+    } finally {
+      setImportingDocx(false)
+    }
+  }
+
   async function saveMarkdown() {
     if (!payload) return
     if (!isDirty) {
@@ -482,16 +676,22 @@ function App() {
       setNotice(text.browserCopyOnlyHtml)
       return
     }
-    const output = await invoke<string>('save_reading_html', {
-      articlePath: payload.path,
-      html: readingHtml,
-    })
-    setNotice(`${text.generatedOpenedReadingHtml}: ${output}`)
+    setExporting('html')
+    try {
+      await invoke<string>('save_reading_html', {
+        articlePath: payload.path,
+        html: readingHtml,
+      })
+    } catch (error) {
+      setNotice(`${text.htmlExportFailed}: ${String(error)}`)
+    } finally {
+      setExporting(null)
+    }
   }
 
   async function saveWordDocx() {
     if (!payload) return
-    setLoading(true)
+    setExporting('word')
     try {
       const { markdownToDocxBase64 } = await import('./word')
       const contentBase64 = await markdownToDocxBase64(previewContent, wordStyle)
@@ -500,20 +700,19 @@ function App() {
         setNotice(text.browserDownloadedWord)
         return
       }
-      const output = await invoke<string>('save_binary_export', {
+      await invoke<string>('save_binary_export', {
         request: { articlePath: payload.path, contentBase64, extension: 'docx' },
       })
-      setNotice(`${text.generatedOpenedWord}: ${output}`)
     } catch (error) {
       setNotice(`${text.wordExportFailed}: ${String(error)}`)
     } finally {
-      setLoading(false)
+      setExporting(null)
     }
   }
 
   async function savePdf() {
     if (!payload) return
-    setLoading(true)
+    setExporting('pdf')
     try {
       const { markdownToPdfBase64 } = await import('./pdf')
       const fontBase64 = await readBundledPdfFont()
@@ -523,18 +722,17 @@ function App() {
         setNotice(text.browserDownloadedPdf)
         return
       }
-      const output = await invoke<string>('save_binary_export', {
+      await invoke<string>('save_binary_export', {
         request: { articlePath: payload.path, contentBase64, extension: 'pdf' },
       })
-      setNotice(`${text.generatedOpenedPdf}: ${output}`)
     } catch (error) {
       setNotice(`${text.pdfExportFailed}: ${String(error)}`)
     } finally {
-      setLoading(false)
+      setExporting(null)
     }
   }
 
-  async function requestImageMarkdown() {
+  async function requestImageMarkdown(source?: ImageMarkdownSource) {
     if (!payload) {
       setNotice(text.openMarkdownFirst)
       return null
@@ -543,22 +741,47 @@ function App() {
       setNotice(text.browserNoLocalImage)
       return null
     }
-    const selected = await open({
-      multiple: false,
-      title: text.insertImageTitle,
-      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
-    })
-    if (typeof selected !== 'string') return null
     try {
-      const response = await invoke<InsertImageAssetResponse>('insert_image_asset', {
-        request: { articlePath: payload.path, imagePath: selected },
-      })
+      const response = source?.kind === 'bytes'
+        ? await invoke<InsertImageAssetResponse>('insert_image_asset_bytes', {
+          request: {
+            articlePath: payload.path,
+            fileName: source.fileName,
+            mimeType: source.mimeType,
+            contentBase64: source.contentBase64,
+          },
+        })
+        : await insertImageFromPath(source?.kind === 'path' ? source.path : await chooseImagePath(), payload.path)
+      if (!response) return null
       setNotice(`${text.insertedImage}: ${response.relativePath}`)
       return response.markdown
     } catch (error) {
       setNotice(`${text.insertImageFailed}: ${String(error)}`)
       return null
     }
+  }
+
+  async function chooseImagePath() {
+    const selected = await open({
+      multiple: false,
+      title: text.insertImageTitle,
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
+    })
+    return typeof selected === 'string' ? selected : null
+  }
+
+  async function insertImageFromPath(imagePath: string | null, articlePath: string) {
+    if (!imagePath) return null
+    return invoke<InsertImageAssetResponse>('insert_image_asset', {
+      request: { articlePath, imagePath },
+    })
+  }
+
+  async function insertImageFromShortcut() {
+    const markdown = await requestImageMarkdown()
+    if (!markdown) return
+    changeReadMode('edit')
+    setPendingEditorInsertion({ id: Date.now(), markdown })
   }
 
   function confirmDiscard() {
@@ -676,6 +899,15 @@ function App() {
     }
   }
 
+  function openPanel(nextTab: PanelTab) {
+    if (isRightPanelOpen && panelTab === nextTab) {
+      setIsRightPanelOpen(false)
+      return
+    }
+    setPanelTab(nextTab)
+    setIsRightPanelOpen(true)
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -705,7 +937,7 @@ function App() {
           </datalist>
         </label>
         <div className="toolbar">
-          <button className="language-button" onClick={() => updateSettings({ language: language === 'zh' ? 'en' : 'zh' })} title={text.switchLanguageTitle} type="button" aria-label={text.languageToggleAria}>
+          <button className="language-button" onClick={() => updateSettings({ language: language === 'zh' ? 'en' : 'zh' })} title={text.switchLanguageTitle} type="button" aria-label={text.switchLanguageTitle}>
             <Languages size={16} />
             <span>{language === 'zh' ? '中' : 'EN'}</span>
           </button>
@@ -724,8 +956,17 @@ function App() {
           <button className="icon-button" onClick={chooseMarkdownFile} title={text.openMarkdownFile}>
             <FileText size={17} />
           </button>
+          <button className="icon-button" onClick={importPdfDraft} title={text.importPdfDraft} disabled={importingPdf}>
+            {importingPdf ? <Loader2 className="spin-icon" size={17} /> : <FileInput size={17} />}
+          </button>
+          <button className="icon-button" onClick={importDocxDraft} title={text.importDocxDraft} disabled={importingDocx}>
+            {importingDocx ? <Loader2 className="spin-icon" size={17} /> : <FileUp size={17} />}
+          </button>
           <button className="icon-button" onClick={openQuickOpen} title={text.quickOpen} disabled={articles.length === 0 && readerState.recent_files.length === 0}>
             <Search size={17} />
+          </button>
+          <button className="icon-button" onClick={() => setInternalWindow('help')} title={text.openHelpWindow}>
+            <HelpCircle size={17} />
           </button>
           <button className="icon-button" onClick={() => loadArticles()} title={text.refresh} disabled={!workspace.trim()}>
             <RefreshCw size={17} />
@@ -740,7 +981,7 @@ function App() {
         </div>
       </header>
 
-      <section className={`workbench ${!isSidebarOpen ? 'sidebar-collapsed' : ''} ${!isRightPanelOpen ? 'panel-collapsed' : ''} ${isFocusMode ? 'focus-mode' : ''}`}>
+      <section className={`workbench ${!isSidebarOpen ? 'sidebar-collapsed' : ''} ${isFocusMode ? 'focus-mode' : ''}`}>
         {isSidebarOpen && !isFocusMode && (
           <LibrarySidebar
             articles={articles}
@@ -790,24 +1031,24 @@ function App() {
           ) : (
             <>
               <div className="reader-tabs">
-                <button className={readMode === 'desktop' ? 'selected' : ''} onClick={() => changeReadMode('desktop')}>
+                <button className={readMode === 'desktop' ? 'selected' : ''} onClick={() => changeReadMode('desktop')} title={text.desktopReading} aria-label={text.desktopReading}>
                   <Monitor size={16} />
                   {text.desktopReading}
                 </button>
-                <button className={readMode === 'source' ? 'selected' : ''} onClick={() => changeReadMode('source')}>
+                <button className={readMode === 'source' ? 'selected' : ''} onClick={() => changeReadMode('source')} title={text.source} aria-label={text.source}>
                   <FileText size={16} />
                   {text.source}
                 </button>
-                <button className={readMode === 'edit' ? 'selected' : ''} onClick={() => changeReadMode('edit')}>
+                <button className={readMode === 'edit' ? 'selected' : ''} onClick={() => changeReadMode('edit')} title={text.edit} aria-label={text.edit}>
                   <PencilLine size={16} />
                   {text.edit}
                 </button>
                 {payload && (
                   <>
-                    <button className={`reader-icon ${favoriteSet.has(payload.path) ? 'is-active' : ''}`} onClick={() => toggleFavorite(payload.path)} title={favoriteSet.has(payload.path) ? text.unfavorite : text.favorite}>
+                    <button className={`reader-icon ${favoriteSet.has(payload.path) ? 'is-active' : ''}`} onClick={() => toggleFavorite(payload.path)} title={favoriteSet.has(payload.path) ? text.unfavorite : text.favorite} aria-label={favoriteSet.has(payload.path) ? text.unfavorite : text.favorite}>
                       <Star size={16} />
                     </button>
-                    <button className={`reader-icon ${pinnedSet.has(payload.path) ? 'is-active' : ''}`} onClick={() => togglePinned(payload.path)} title={pinnedSet.has(payload.path) ? text.unpin : text.pin}>
+                    <button className={`reader-icon ${pinnedSet.has(payload.path) ? 'is-active' : ''}`} onClick={() => togglePinned(payload.path)} title={pinnedSet.has(payload.path) ? text.unpin : text.pin} aria-label={pinnedSet.has(payload.path) ? text.unpin : text.pin}>
                       <Pin size={16} />
                     </button>
                   </>
@@ -830,6 +1071,7 @@ function App() {
                   onChooseWorkspace={chooseWorkspace}
                   onRequestImageMarkdown={requestImageMarkdown}
                   onSave={saveMarkdown}
+                  pendingInsertion={pendingEditorInsertion}
                   payload={payload}
                   previewParsed={previewParsed}
                   readMode={readMode}
@@ -846,73 +1088,88 @@ function App() {
           )}
         </section>
 
-        {isRightPanelOpen && !isFocusMode && (
-          <aside className="right-panel">
-            <div className="panel-tabs">
-              <button className="panel-toggle" onClick={() => setIsRightPanelOpen(false)} title={text.collapsePanel}>
-                <PanelRightClose size={15} />
-              </button>
-              <button className={panelTab === 'outline' ? 'selected' : ''} onClick={() => setPanelTab('outline')}>
-                {text.outline}
-              </button>
-              <button className={panelTab === 'actions' ? 'selected' : ''} onClick={() => setPanelTab('actions')}>
-                {text.actions}
-              </button>
-              <button className={panelTab === 'settings' ? 'selected' : ''} onClick={() => setPanelTab('settings')}>
-                <Settings size={14} />
-              </button>
-            </div>
-            {panelTab === 'outline' && (
-              <OutlinePanel
-                imageSources={imageSources}
-                language={language}
-                missingImages={payload?.missing_images || []}
-                onCopyPath={(path) => {
-                  void navigator.clipboard.writeText(path)
-                  setNotice(text.copiedPath)
-                }}
-                onSelect={jumpToOutline}
-                outline={outline}
-                selectedArticle={selectedArticle}
-                stats={stats}
-                text={text}
-              />
-            )}
-            {panelTab === 'actions' && (
-              <ActionPanel
-                disabled={!payload}
-                language={language}
-                onCopyHtml={copyReadingHtml}
-                onCopyMarkdown={copyMarkdown}
-                onCopyPlainText={copyPlainText}
-                onSaveHtml={saveReadingHtml}
-                onSavePdf={savePdf}
-                onSaveWordDocx={saveWordDocx}
-                onWordStyleChange={(value) => {
-                  setWordStyle(value)
-                  updateSettings({ default_export_style: value })
-                }}
-                stats={stats}
-                text={text}
-                wordStyle={wordStyle}
-              />
-            )}
-            {panelTab === 'settings' && (
-              <SettingsPanel
-                language={language}
-                settings={readerState.settings}
-                text={text}
-                wordStyle={wordStyle}
-                onChange={updateSettings}
-                onUseCurrentWorkspace={() => {
-                  updateSettings({ default_workspace: workspace })
-                  setNotice(text.stateSaved)
-                }}
-              />
-            )}
-          </aside>
-        )}
       </section>
+
+      {!isFocusMode && (
+        <FloatingToolRail
+          isPanelOpen={isRightPanelOpen}
+          activeTab={panelTab}
+          text={text}
+          onOpenHelp={() => setInternalWindow('help')}
+          onOpenPanel={openPanel}
+        />
+      )}
+
+      {isRightPanelOpen && !isFocusMode && (
+        <aside className="right-panel" aria-label={text.expandPanel}>
+          <div className="panel-tabs">
+            <button className="panel-toggle" onClick={() => setIsRightPanelOpen(false)} title={text.drawerClose}>
+              <PanelRightClose size={15} />
+            </button>
+            <button className={panelTab === 'outline' ? 'selected' : ''} onClick={() => setPanelTab('outline')}>
+              <ListTree size={14} />
+              <span>{text.outline}</span>
+            </button>
+            <button className={panelTab === 'actions' ? 'selected' : ''} onClick={() => setPanelTab('actions')}>
+              <Download size={14} />
+              <span>{text.actions}</span>
+            </button>
+            <button className={panelTab === 'settings' ? 'selected' : ''} onClick={() => setPanelTab('settings')}>
+              <Settings size={14} />
+              <span>{text.settings}</span>
+            </button>
+          </div>
+          {panelTab === 'outline' && (
+            <OutlinePanel
+              imageSources={imageSources}
+              language={language}
+              missingImages={payload?.missing_images || []}
+              onCopyPath={(path) => {
+                void navigator.clipboard.writeText(path)
+                setNotice(text.copiedPath)
+              }}
+              onSelect={jumpToOutline}
+              outline={outline}
+              selectedArticle={selectedArticle}
+              stats={stats}
+              text={text}
+            />
+          )}
+          {panelTab === 'actions' && (
+            <ActionPanel
+              disabled={!payload || Boolean(exporting)}
+              exporting={exporting}
+              language={language}
+              onCopyHtml={copyReadingHtml}
+              onCopyMarkdown={copyMarkdown}
+              onCopyPlainText={copyPlainText}
+              onSaveHtml={saveReadingHtml}
+              onSavePdf={savePdf}
+              onSaveWordDocx={saveWordDocx}
+              onWordStyleChange={(value) => {
+                setWordStyle(value)
+                updateSettings({ default_export_style: value })
+              }}
+              stats={stats}
+              text={text}
+              wordStyle={wordStyle}
+            />
+          )}
+          {panelTab === 'settings' && (
+            <SettingsPanel
+              language={language}
+              settings={readerState.settings}
+              text={text}
+              wordStyle={wordStyle}
+              onChange={updateSettings}
+              onUseCurrentWorkspace={() => {
+                updateSettings({ default_workspace: workspace })
+                setNotice(text.stateSaved)
+              }}
+            />
+          )}
+        </aside>
+      )}
 
       {isQuickOpenOpen && (
         <QuickOpenDialog
@@ -932,6 +1189,12 @@ function App() {
         />
       )}
 
+      {internalWindow === 'help' && (
+        <InternalWindow icon={<HelpCircle size={17} />} title={text.help} text={text} onClose={() => setInternalWindow(null)}>
+          <HelpPanel text={text} />
+        </InternalWindow>
+      )}
+
       {imagePreview && (
         <button className="image-preview-backdrop" onClick={() => setImagePreview('')}>
           <img src={imagePreview} alt="" />
@@ -941,6 +1204,70 @@ function App() {
 
       {notice && <button className="toast" onClick={() => setNotice('')}>{notice}</button>}
     </main>
+  )
+}
+
+function FloatingToolRail({
+  activeTab,
+  isPanelOpen,
+  text,
+  onOpenHelp,
+  onOpenPanel,
+}: {
+  activeTab: PanelTab
+  isPanelOpen: boolean
+  text: UiText
+  onOpenHelp: () => void
+  onOpenPanel: (tab: PanelTab) => void
+}) {
+  return (
+    <nav className="floating-tool-rail" aria-label={text.expandPanel}>
+      <button className={isPanelOpen && activeTab === 'outline' ? 'selected' : ''} onClick={() => onOpenPanel('outline')} title={text.outline}>
+        <ListTree size={18} />
+      </button>
+      <button className={isPanelOpen && activeTab === 'actions' ? 'selected' : ''} onClick={() => onOpenPanel('actions')} title={text.actions}>
+        <Download size={18} />
+      </button>
+      <button className={isPanelOpen && activeTab === 'settings' ? 'selected' : ''} onClick={() => onOpenPanel('settings')} title={text.settings}>
+        <Settings size={18} />
+      </button>
+      <button onClick={onOpenHelp} title={text.openHelpWindow}>
+        <HelpCircle size={18} />
+      </button>
+    </nav>
+  )
+}
+
+function InternalWindow({
+  children,
+  icon,
+  text,
+  title,
+  wide = false,
+  onClose,
+}: {
+  children: ReactNode
+  icon: ReactNode
+  text: UiText
+  title: string
+  wide?: boolean
+  onClose: () => void
+}) {
+  return (
+    <div className="internal-window-backdrop" onMouseDown={onClose}>
+      <section className={`internal-window ${wide ? 'wide' : ''}`} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="internal-window-head">
+          <div>
+            {icon}
+            <strong>{title}</strong>
+          </div>
+          <button className="panel-toggle" onClick={onClose} title={text.closeWindow}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="internal-window-body">{children}</div>
+      </section>
+    </div>
   )
 }
 
@@ -955,6 +1282,7 @@ function ReaderContent({
   onChooseWorkspace,
   onRequestImageMarkdown,
   onSave,
+  pendingInsertion,
   payload,
   previewParsed,
   readMode,
@@ -971,8 +1299,9 @@ function ReaderContent({
   onChange: (value: string) => void
   onChooseFile: () => void
   onChooseWorkspace: () => void
-  onRequestImageMarkdown: () => Promise<string | null>
+  onRequestImageMarkdown: (source?: ImageMarkdownSource) => Promise<string | null>
   onSave: () => void
+  pendingInsertion: EditorInsertion | null
   payload: ArticlePayload | null
   previewParsed: { title: string; digest: string }
   readMode: ReadMode
@@ -1016,6 +1345,7 @@ function ReaderContent({
           onChange={onChange}
           onRequestImageMarkdown={onRequestImageMarkdown}
           onSave={onSave}
+          pendingInsertion={pendingInsertion}
           text={text}
         />
       </div>
@@ -1182,6 +1512,7 @@ function OutlineOnly({ outline, text, onSelect }: { outline: OutlineItem[]; text
 
 function ActionPanel({
   disabled,
+  exporting,
   language,
   onCopyHtml,
   onCopyMarkdown,
@@ -1195,6 +1526,7 @@ function ActionPanel({
   wordStyle,
 }: {
   disabled: boolean
+  exporting: 'html' | 'word' | 'pdf' | null
   language: Language
   onCopyHtml: () => void
   onCopyMarkdown: () => void
@@ -1227,14 +1559,25 @@ function ActionPanel({
         </select>
       </label>
       <div className="export-primary-actions">
-        <button className="primary-export-button" onClick={onSaveWordDocx} disabled={disabled}><FileDown size={15} />Word<span>{text.wordDescription}</span></button>
-        <button className="primary-export-button" onClick={onSavePdf} disabled={disabled}><FileDown size={15} />PDF<span>{text.pdfDescription}</span></button>
+        <button className="primary-export-button" onClick={onSaveWordDocx} disabled={disabled}>
+          {exporting === 'word' ? <Loader2 className="spin-icon" size={15} /> : <FileDown size={15} />}
+          {exporting === 'word' ? text.exporting : 'Word'}
+          <span>{text.wordDescription}</span>
+        </button>
+        <button className="primary-export-button" onClick={onSavePdf} disabled={disabled}>
+          {exporting === 'pdf' ? <Loader2 className="spin-icon" size={15} /> : <FileDown size={15} />}
+          {exporting === 'pdf' ? text.exporting : 'PDF'}
+          <span>{text.pdfDescription}</span>
+        </button>
       </div>
       <div className="action-list">
         <button onClick={onCopyMarkdown} disabled={disabled}><Copy size={14} />{text.copyMarkdown}</button>
         <button onClick={onCopyPlainText} disabled={disabled}><Copy size={14} />{text.copyPlainText}</button>
         <button onClick={onCopyHtml} disabled={disabled}><Copy size={14} />{text.copyHtml}</button>
-        <button onClick={onSaveHtml} disabled={disabled}><Download size={14} />{text.saveHtml}</button>
+        <button onClick={onSaveHtml} disabled={disabled}>
+          {exporting === 'html' ? <Loader2 className="spin-icon" size={14} /> : <Download size={14} />}
+          {exporting === 'html' ? text.exporting : text.saveHtml}
+        </button>
       </div>
     </div>
   )
@@ -1289,6 +1632,21 @@ function SettingsPanel({
   )
 }
 
+function HelpPanel({ text }: { text: UiText }) {
+  return (
+    <div className="panel-content help-panel">
+      {text.helpSections.map((section) => (
+        <section key={section.title} className="help-section">
+          <h3>{section.title}</h3>
+          <ul>
+            {section.items.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="toggle-row">
@@ -1305,17 +1663,19 @@ function RichMarkdownEditor({
   onChange,
   onRequestImageMarkdown,
   onSave,
+  pendingInsertion,
 }: {
   scrollRef: RefObject<HTMLDivElement | null>
   text: UiText
   value: string
   onChange: (value: string) => void
-  onRequestImageMarkdown: () => Promise<string | null>
+  onRequestImageMarkdown: (source?: ImageMarkdownSource) => Promise<string | null>
   onSave: () => void
+  pendingInsertion: EditorInsertion | null
 }) {
   return (
     <div ref={scrollRef} className="rich-editor-scroll">
-      <FallbackMarkdownEditor value={value} onChange={onChange} onRequestImageMarkdown={onRequestImageMarkdown} onSave={onSave} text={text} />
+      <FallbackMarkdownEditor value={value} onChange={onChange} onRequestImageMarkdown={onRequestImageMarkdown} onSave={onSave} pendingInsertion={pendingInsertion} text={text} />
     </div>
   )
 }
@@ -1326,15 +1686,18 @@ function FallbackMarkdownEditor({
   onChange,
   onRequestImageMarkdown,
   onSave,
+  pendingInsertion,
 }: {
   text: UiText
   value: string
   onChange: (value: string) => void
-  onRequestImageMarkdown: () => Promise<string | null>
+  onRequestImageMarkdown: (source?: ImageMarkdownSource) => Promise<string | null>
   onSave: () => void
+  pendingInsertion: EditorInsertion | null
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const selectionRef = useRef<{ start: number, end: number } | null>(null)
+  const consumedInsertionRef = useRef(0)
   const [isInsertingImage, setIsInsertingImage] = useState(false)
 
   function rememberSelection(target = textareaRef.current) {
@@ -1345,31 +1708,59 @@ function FallbackMarkdownEditor({
     }
   }
 
+  function insertMarkdown(markdown: string) {
+    const textarea = textareaRef.current
+    const activeSelection = textarea && document.activeElement === textarea && selectionRef.current
+      ? { start: textarea.selectionStart, end: textarea.selectionEnd }
+      : selectionRef.current
+    const fallbackIndex = defaultImageInsertionIndex(value)
+    const start = clampIndex(activeSelection?.start ?? fallbackIndex, value.length)
+    const end = clampIndex(activeSelection?.end ?? start, value.length)
+    const before = value.slice(0, start)
+    const after = value.slice(end)
+    const prefix = before && !before.endsWith('\n') ? '\n\n' : ''
+    const suffix = after && !after.startsWith('\n') ? '\n\n' : '\n'
+    const insertion = `${prefix}${markdown}${suffix}`
+    const nextValue = `${before}${insertion}${after}`
+    const nextCursor = before.length + insertion.length
+    onChange(nextValue)
+    selectionRef.current = { start: nextCursor, end: nextCursor }
+    window.requestAnimationFrame(() => {
+      textarea?.focus()
+      textarea?.setSelectionRange(nextCursor, nextCursor)
+    })
+  }
+
+  useEffect(() => {
+    if (!pendingInsertion || consumedInsertionRef.current === pendingInsertion.id) return
+    consumedInsertionRef.current = pendingInsertion.id
+    insertMarkdown(pendingInsertion.markdown)
+    // pendingInsertion is intentionally the trigger; value is read from the render that received it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInsertion])
+
   async function insertImage() {
     setIsInsertingImage(true)
     try {
       const markdown = await onRequestImageMarkdown()
       if (!markdown) return
-      const textarea = textareaRef.current
-      const activeSelection = textarea && document.activeElement === textarea && selectionRef.current
-        ? { start: textarea.selectionStart, end: textarea.selectionEnd }
-        : selectionRef.current
-      const fallbackIndex = defaultImageInsertionIndex(value)
-      const start = clampIndex(activeSelection?.start ?? fallbackIndex, value.length)
-      const end = clampIndex(activeSelection?.end ?? start, value.length)
-      const before = value.slice(0, start)
-      const after = value.slice(end)
-      const prefix = before && !before.endsWith('\n') ? '\n\n' : ''
-      const suffix = after && !after.startsWith('\n') ? '\n\n' : '\n'
-      const insertion = `${prefix}${markdown}${suffix}`
-      const nextValue = `${before}${insertion}${after}`
-      const nextCursor = before.length + insertion.length
-      onChange(nextValue)
-      selectionRef.current = { start: nextCursor, end: nextCursor }
-      window.requestAnimationFrame(() => {
-        textarea?.focus()
-        textarea?.setSelectionRange(nextCursor, nextCursor)
+      insertMarkdown(markdown)
+    } finally {
+      setIsInsertingImage(false)
+    }
+  }
+
+  async function pasteImage(file: File) {
+    setIsInsertingImage(true)
+    try {
+      const contentBase64 = await blobToBase64(file)
+      const markdown = await onRequestImageMarkdown({
+        kind: 'bytes',
+        fileName: file.name || `pasted-image-${Date.now()}.png`,
+        mimeType: file.type || 'image/png',
+        contentBase64,
       })
+      if (markdown) insertMarkdown(markdown)
     } finally {
       setIsInsertingImage(false)
     }
@@ -1394,6 +1785,14 @@ function FallbackMarkdownEditor({
         onClick={() => rememberSelection()}
         onKeyUp={() => rememberSelection()}
         onMouseUp={() => rememberSelection()}
+        onPaste={(event) => {
+          const imageItem = Array.from(event.clipboardData.items).find((item) => item.type.startsWith('image/'))
+          const file = imageItem?.getAsFile()
+          if (!file) return
+          event.preventDefault()
+          rememberSelection(event.currentTarget)
+          void pasteImage(file)
+        }}
         wrap="off"
         onKeyDown={(event) => {
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -1424,6 +1823,26 @@ function defaultImageInsertionIndex(markdown: string) {
   }
 
   return markdown.length
+}
+
+function isMarkdownExtension(extension: string) {
+  return ['md', 'markdown', 'mdown'].includes(extension.toLowerCase())
+}
+
+function isImageExtension(extension: string) {
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension.toLowerCase())
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const value = String(reader.result || '')
+      resolve(value.includes(',') ? value.split(',').pop() || '' : value)
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
 }
 
 function AppErrorFallback({ message }: { message: string }) {

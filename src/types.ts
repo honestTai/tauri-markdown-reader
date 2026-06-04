@@ -19,6 +19,22 @@ export interface ArticlePayload {
   missing_images: MissingImage[]
 }
 
+export interface ImportPdfResponse {
+  markdownPath: string
+  workspace: string
+  pageCount: number
+  charCount: number
+}
+
+export interface ImportDocxResponse {
+  markdownPath: string
+  workspace: string
+  paragraphCount: number
+  tableCount: number
+  imageCount: number
+  charCount: number
+}
+
 export type PanelTab = 'outline' | 'actions' | 'settings'
 
 export type ReadMode = 'desktop' | 'source' | 'edit'

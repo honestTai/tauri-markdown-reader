@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.3.0 - 2026-06-04
+
+### Added
+
+- PDF to Markdown draft import.
+- DOCX to Markdown draft import with heading, list, table, and image extraction.
+- DOCX image export into adjacent `.assets` folders.
+- Clipboard screenshot/image paste in edit mode.
+- Drag-and-drop handling for folders, Markdown files, PDF files, DOCX files, and images.
+- Built-in usage help with Chinese and English copy.
+- Keyboard shortcuts for open, save, quick open, search focus, mode switching, image insertion, and PDF/DOCX import.
+- Bundled `md-reader.exe` CLI sidecar for GUI installs and local Agent workflows.
+- New README demo GIF covering basic operation, import, and export.
+- Hacker News Show HN submission draft.
+
+### Changed
+
+- Rewrote Chinese and English README files for the V3 positioning.
+- Updated help copy around CLI-first Agent integration.
+- Added export loading states.
+- Kept the V3 application focused on a stable GUI plus external CLI instead of an embedded terminal.
+
+### Removed
+
+- Removed the experimental embedded xterm/PTY terminal after WebView2 cursor rendering proved unreliable.
+- Removed `@xterm/*` frontend dependencies and `portable-pty` from the Tauri backend.
+
 ## v0.2.0 - 2026-06-04
 
 ### Added
