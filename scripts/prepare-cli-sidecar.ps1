@@ -4,8 +4,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $tauriDir = Join-Path $repoRoot 'src-tauri'
 $cargoToml = Join-Path $tauriDir 'Cargo.toml'
 $releaseDir = Join-Path (Join-Path $tauriDir 'target') 'release'
-$isWindows = [System.Environment]::OSVersion.Platform -eq 'Win32NT' -or $env:OS -eq 'Windows_NT'
-$exeExt = if ($isWindows) { '.exe' } else { '' }
+$runningOnWindows = [System.Environment]::OSVersion.Platform -eq 'Win32NT' -or $env:OS -eq 'Windows_NT'
+$exeExt = if ($runningOnWindows) { '.exe' } else { '' }
 $source = Join-Path $releaseDir "md-reader$exeExt"
 
 cargo build --manifest-path $cargoToml --release --bin md-reader
