@@ -1,113 +1,93 @@
 # Markdown Reader
 
-Local-first Markdown reader and document library built with Tauri, React, and TypeScript.
+**中文** | [English](README.en.md)
 
-Markdown Reader is for reading project documents, PRDs, README files, meeting notes, and troubleshooting records without opening an IDE. Open a folder or a single `.md` file, search filenames and body text, jump through the outline, keep reading positions, make light edits, insert local images, and export Word/PDF/reading HTML.
+本地优先的桌面 Markdown 阅读器和文档资料库，使用 Tauri、React 和 TypeScript 构建。
 
-It is designed for people who keep serious work in Markdown but still want a calm desktop reading surface: local files stay local, the library is searchable, and export actions are one click away.
+Markdown Reader 适合阅读项目文档、PRD、README、会议记录、排障笔记和个人知识库。你可以打开一个 Markdown 目录或单个 `.md` 文件，把零散文档整理成可搜索、可收藏、可置顶、可导出的本地资料库。
 
-## Demo
+它不是一个云端笔记平台，也不是 IDE 的替代品。它更像一个安静的桌面阅读工作台：文件留在本地，正文可以全文搜索，大纲可以快速跳转，阅读位置可以自动恢复，轻量编辑和 Word/PDF/HTML 导出也都放在手边。
 
-![Markdown Reader running demo](docs/assets/markdown-reader-demo.gif)
+## 运行演示
 
-## Why Markdown Reader
+![Markdown Reader 运行演示](docs/assets/markdown-reader-demo.gif)
 
-- Read large Markdown folders as a document library, not a pile of tabs.
-- Search filenames, frontmatter, titles, headings, and body text from one box.
-- Jump through outlines, restore the last workspace, and keep per-document scroll position.
-- Keep favorites and pinned documents in app state without modifying source files.
-- Make small edits, insert local images, and save with automatic backups.
-- Export to Word, PDF, Markdown, plain text, or reading HTML.
-- Use a strict desktop security model: sanitized Markdown rendering, a restrictive Tauri CSP, workspace-scoped file operations, and CI checks for frontend and Rust code.
+## 最新能力
 
-## Screenshots
+- 本地文档库：打开目录或单个 Markdown 文件，递归扫描常规文档目录，并自动忽略构建目录。
+- 全文搜索：覆盖文件名、标题、frontmatter、正文和片段预览，搜索结果可直接打开命中文档。
+- 快速打开：独立于侧栏搜索的 quick open，适合在大量文档中快速跳转。
+- 阅读体验：三栏工作台、右侧大纲、字数统计、阅读时间、图片资源状态和每篇文档的滚动位置记忆。
+- 收藏和置顶：状态保存在应用数据中，不会修改原 Markdown 文件。
+- 专注模式：可隐藏文档库，并按设置保留或隐藏右侧大纲。
+- 轻量编辑：支持源码编辑、未保存提示、保存前备份、本地图片插入和自动预览。
+- 多格式导出：支持 Word `.docx`、PDF、Markdown、纯文本和阅读 HTML。
+- 中英文界面：应用内可在中文和英文 UI 之间切换。
+- 安全加固：Markdown 渲染经过 DOMPurify 净化，Tauri 使用严格 CSP，文件命令限制在已注册 Markdown 工作区内。
+- 自动检查：CI 覆盖前端 lint/build/audit，以及 Rust fmt/clippy/test。
 
-### Chinese UI
+## 截图
 
-![Markdown Reader Chinese UI](docs/assets/markdown-reader-zh.png)
+### 中文界面
 
-### English UI
+![Markdown Reader 中文界面](docs/assets/markdown-reader-zh.png)
 
-![Markdown Reader English UI](docs/assets/markdown-reader-en.png)
+### 英文界面
 
-## V2 Highlights
+![Markdown Reader 英文界面](docs/assets/markdown-reader-en.png)
 
-- Recent workspaces and recent files are saved locally.
-- Startup can restore the last workspace, document, mode, and reading position.
-- Full-text search covers filenames, titles, frontmatter, and Markdown body text.
-- Search results show snippets and can open the matched document directly.
-- Favorites and pinned documents are stored in app state, not in Markdown files.
-- The document list supports library filters, relative paths, and sorting by updated time, filename, or path.
-- Focus mode hides the library and can optionally keep the outline.
-- Light editing supports unsaved-change prompts, save, save-before backup, and local image insertion.
-- The right panel shows outline, document stats, image resource status, copy actions, export actions, and settings.
-- Word, PDF, Markdown copy, plain-text copy, and reading HTML remain available.
-- Markdown rendering is sanitized before display.
-- Tauri file access is scoped to registered Markdown workspaces.
-- CI covers frontend lint/build/audit and Rust fmt/clippy/test.
+## 适合场景
 
-## Features
+- 管理项目 README、PRD、技术方案和版本说明。
+- 阅读会议记录、排障记录、复盘文档和交付材料。
+- 在不打开 IDE 的情况下浏览代码仓库里的 Markdown 文档。
+- 把本地 Markdown 知识库整理成可检索的桌面资料库。
+- 将 Markdown 内容快速导出为 Word、PDF 或阅读 HTML。
 
-- Open a Markdown folder or a single Markdown file.
-- Recursively scan regular Markdown directories while ignoring build folders.
-- Read Markdown in a wide desktop layout with clickable outline navigation.
-- Remember per-document scroll position across app restarts.
-- Search body text case-insensitively.
-- Mark documents as favorite or pinned without changing the source file.
-- Preview local relative images and detect missing image paths.
-- Click rendered images to view a larger preview.
-- Edit Markdown source and save with an automatic backup in `.reader-backups/`.
-- Insert local images into sibling `<document>-assets/` folders.
-- Export Word `.docx` with headings, lists, code, styles, and images.
-- Export PDF with bundled font support and images.
-- Copy Markdown, plain text, or reading HTML.
-- Save reading HTML.
-- Switch the app UI between Chinese and English.
+## 下载
 
-## Download
+发布包会上传到 GitHub Releases：
 
-Release builds are published on GitHub Releases:
+[下载最新版本](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
 
-[Download the latest release](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
+当前构建目标：
 
-Current build targets:
+- Windows x64：`.exe` 和 `.msi`
+- macOS Intel：`.app.tar.gz`
+- macOS Apple Silicon：`.app.tar.gz`
 
-- Windows x64: `.exe` and `.msi`
-- macOS Intel: `.app.tar.gz`
-- macOS Apple Silicon: `.app.tar.gz`
+如果 macOS 构建未经过 Apple 签名或公证，首次启动时可能需要在 Finder 中右键应用并选择“打开”。
 
-If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
-
-## Promotion Notes
-
-Chinese launch copy and asset references are in [docs/PROMOTION.md](docs/PROMOTION.md).
-
-## Local Development
+## 本地开发
 
 ```bash
 pnpm install
 pnpm run tauri:dev
 ```
 
-## Local Build
+## 本地构建
 
 ```bash
 pnpm run tauri:build
 ```
 
-Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local macOS builds require Rust/Cargo, Xcode Command Line Tools, and a macOS environment.
+Windows 本地构建需要 Rust/Cargo 和 Microsoft C++ Build Tools。macOS 本地构建需要 Rust/Cargo、Xcode Command Line Tools 和 macOS 环境。
 
-## Release
+## 发布
 
-Push a `v*` tag to create a GitHub Release:
+推送 `v*` tag 会创建 GitHub Release：
 
 ```bash
 git tag v0.2.0
 git push origin main v0.2.0
 ```
 
-The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives, then uploads them to the matching GitHub Release.
+工作流会构建 Windows 安装包和 macOS Intel / Apple Silicon `.app` 归档，并上传到对应的 GitHub Release。
+
+## 宣传素材
+
+中文宣传文案和素材路径见 [docs/PROMOTION.md](docs/PROMOTION.md)。
 
 ## License
 
-This project is open-sourced under the MIT License. See [LICENSE](LICENSE).
+本项目基于 MIT License 开源，详见 [LICENSE](LICENSE)。

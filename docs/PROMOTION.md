@@ -1,5 +1,7 @@
 # Markdown Reader 宣传文案
 
+**中文** | [English](PROMOTION.en.md)
+
 ## 一句话
 
 Markdown Reader 是一个本地优先的桌面 Markdown 阅读器，把项目文档、PRD、README、会议记录和排障笔记整理成可搜索、可收藏、可导出的资料库。
@@ -21,6 +23,7 @@ Markdown Reader 是一个本地优先的桌面 Markdown 阅读器，把项目文
 - 轻编辑：支持保存前备份、本地图片插入和源码编辑。
 - 多格式导出：Word、PDF、Markdown、纯文本、阅读 HTML。
 - 安全加固：DOMPurify 渲染净化、严格 Tauri CSP、工作区范围内文件访问、CI 自动检查。
+- 最新文档：README 已支持中文 / English 切换，便于国内外用户快速了解项目。
 
 ## 可配图素材
 

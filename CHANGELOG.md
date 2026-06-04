@@ -5,12 +5,15 @@
 ### Added
 
 - Added a running demo GIF for README and promotional use.
+- Added bilingual README files with Chinese / English language switching.
+- Added bilingual promotion copy for launch sharing.
 - Added CI coverage for frontend lint/build/audit and Rust fmt/clippy/test.
 - Added a Chinese promotion note with short launch copy and asset references.
 
 ### Changed
 
 - Split the React app into focused reader, library, quick-open, export, i18n, and search modules.
+- Refreshed README content to match the latest Markdown library, search, export, security, and CI capabilities.
 - Hardened Markdown rendering with DOMPurify and restored a restrictive Tauri CSP.
 - Scoped Tauri file commands to registered Markdown workspaces.
 
