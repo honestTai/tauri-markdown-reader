@@ -12,7 +12,7 @@ export function markdownToPlainText(markdown: string) {
 }
 
 export async function readBundledPdfFont() {
-  const response = await fetch('fonts/NotoSansSC-VF.ttf')
+  const response = await fetch('/fonts/NotoSansSC-VF.ttf')
   if (!response.ok) throw new Error('内置 PDF 字体加载失败')
   return arrayBufferToBase64(await response.arrayBuffer())
 }
