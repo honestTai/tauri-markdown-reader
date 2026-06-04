@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added a running demo GIF for README and promotional use.
+- Added CI coverage for frontend lint/build/audit and Rust fmt/clippy/test.
+- Added a Chinese promotion note with short launch copy and asset references.
+
+### Changed
+
+- Split the React app into focused reader, library, quick-open, export, i18n, and search modules.
+- Hardened Markdown rendering with DOMPurify and restored a restrictive Tauri CSP.
+- Scoped Tauri file commands to registered Markdown workspaces.
+
 ## v0.2.0 - 2026-06-03
 
 ### Added

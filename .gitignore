@@ -13,6 +13,10 @@ dist-ssr
 *.local
 src-tauri/target
 src-tauri/gen
+docs/assets/demo-frames/
+docs/assets/demo-palette.png
+docs/assets/demo-check.png
+.tmp/
 
 # Editor directories and files
 .vscode/*

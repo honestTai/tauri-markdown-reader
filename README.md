@@ -4,6 +4,22 @@ Local-first Markdown reader and document library built with Tauri, React, and Ty
 
 Markdown Reader is for reading project documents, PRDs, README files, meeting notes, and troubleshooting records without opening an IDE. Open a folder or a single `.md` file, search filenames and body text, jump through the outline, keep reading positions, make light edits, insert local images, and export Word/PDF/reading HTML.
 
+It is designed for people who keep serious work in Markdown but still want a calm desktop reading surface: local files stay local, the library is searchable, and export actions are one click away.
+
+## Demo
+
+![Markdown Reader running demo](docs/assets/markdown-reader-demo.gif)
+
+## Why Markdown Reader
+
+- Read large Markdown folders as a document library, not a pile of tabs.
+- Search filenames, frontmatter, titles, headings, and body text from one box.
+- Jump through outlines, restore the last workspace, and keep per-document scroll position.
+- Keep favorites and pinned documents in app state without modifying source files.
+- Make small edits, insert local images, and save with automatic backups.
+- Export to Word, PDF, Markdown, plain text, or reading HTML.
+- Use a strict desktop security model: sanitized Markdown rendering, a restrictive Tauri CSP, workspace-scoped file operations, and CI checks for frontend and Rust code.
+
 ## Screenshots
 
 ### Chinese UI
@@ -26,6 +42,9 @@ Markdown Reader is for reading project documents, PRDs, README files, meeting no
 - Light editing supports unsaved-change prompts, save, save-before backup, and local image insertion.
 - The right panel shows outline, document stats, image resource status, copy actions, export actions, and settings.
 - Word, PDF, Markdown copy, plain-text copy, and reading HTML remain available.
+- Markdown rendering is sanitized before display.
+- Tauri file access is scoped to registered Markdown workspaces.
+- CI covers frontend lint/build/audit and Rust fmt/clippy/test.
 
 ## Features
 
@@ -58,6 +77,10 @@ Current build targets:
 - macOS Apple Silicon: `.app.tar.gz`
 
 If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
+
+## Promotion Notes
+
+Chinese launch copy and asset references are in [docs/PROMOTION.md](docs/PROMOTION.md).
 
 ## Local Development
 
