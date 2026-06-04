@@ -477,7 +477,10 @@ fn import_pdf_as_markdown(request: ImportPdfRequest) -> Result<ImportPdfResponse
         .filter(|ch| !ch.is_whitespace())
         .count();
     if text_chars < 20 {
-        return Err("这个 PDF 没有提取到足够文字，可能是扫描件或图片型 PDF，暂不支持自动转 Markdown。".to_string());
+        return Err(
+            "这个 PDF 没有提取到足够文字，可能是扫描件或图片型 PDF，暂不支持自动转 Markdown。"
+                .to_string(),
+        );
     }
     let markdown = pdf_pages_to_markdown(&pdf_path, &pages)?;
 
@@ -756,7 +759,9 @@ fn save_binary_export(request: SaveBinaryExportRequest) -> Result<String, String
 }
 
 #[tauri::command]
-fn run_console_command(request: RunConsoleCommandRequest) -> Result<RunConsoleCommandResponse, String> {
+fn run_console_command(
+    request: RunConsoleCommandRequest,
+) -> Result<RunConsoleCommandResponse, String> {
     let tool = request.tool.trim();
     let executable = resolve_console_tool(tool)?;
     let args = split_console_args(&request.args)?;
@@ -820,14 +825,16 @@ fn run_cli_inner(args: &[String]) -> Result<(), String> {
         "inspect" => cli_inspect(args),
         "search" => cli_search(args),
         "read" => cli_read(args),
-        _ => Err(format!("未知 CLI 命令：{command}\n\n运行 md-reader --help 查看用法。")),
+        _ => Err(format!(
+            "未知 CLI 命令：{command}\n\n运行 md-reader --help 查看用法。"
+        )),
     }
 }
 
 fn cli_convert(args: &[String]) -> Result<(), String> {
-    let input = args
-        .get(1)
-        .ok_or_else(|| "用法：md-reader convert <input.pdf|input.docx> --to md --out <path> [--json]".to_string())?;
+    let input = args.get(1).ok_or_else(|| {
+        "用法：md-reader convert <input.pdf|input.docx> --to md --out <path> [--json]".to_string()
+    })?;
     let json = cli_has_flag(args, "--json");
     let to = cli_option(args, "--to").unwrap_or_else(|| "md".to_string());
     if to != "md" {
@@ -873,7 +880,11 @@ fn cli_convert(args: &[String]) -> Result<(), String> {
             relative_dir: assets_dir_name,
         };
         let converted = convert_docx_to_markdown_with_assets(&input_path, Some(export))?;
-        let char_count = converted.markdown.chars().filter(|ch| !ch.is_whitespace()).count();
+        let char_count = converted
+            .markdown
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .count();
         fs::write(&output_path, converted.markdown).map_err(to_err)?;
         assets_dir = Some(output_parent.join(format!("{asset_stem}.assets")));
         CliConvertOutput {
@@ -934,7 +945,11 @@ fn cli_inspect(args: &[String]) -> Result<(), String> {
             table_count: converted.table_count,
             page_count: 0,
             image_count: converted.image_count,
-            char_count: converted.markdown.chars().filter(|ch| !ch.is_whitespace()).count(),
+            char_count: converted
+                .markdown
+                .chars()
+                .filter(|ch| !ch.is_whitespace())
+                .count(),
         }
     } else {
         return Err("仅支持检查 PDF 或 DOCX。".to_string());
@@ -961,10 +976,16 @@ fn cli_search(args: &[String]) -> Result<(), String> {
         query,
     })?;
     if json {
-        println!("{}", serde_json::to_string_pretty(&results).map_err(to_err)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&results).map_err(to_err)?
+        );
     } else {
         for result in results {
-            println!("{}:{} {}", result.relative_path, result.line, result.snippet);
+            println!(
+                "{}:{} {}",
+                result.relative_path, result.line, result.snippet
+            );
         }
     }
     Ok(())
@@ -1854,7 +1875,8 @@ fn export_docx_images<R: Read + std::io::Seek>(
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("image.png");
-        let extension = image_extension_from_file_or_mime(source_name, "").unwrap_or_else(|_| "png".to_string());
+        let extension = image_extension_from_file_or_mime(source_name, "")
+            .unwrap_or_else(|_| "png".to_string());
         let stem = Path::new(source_name)
             .file_stem()
             .and_then(|name| name.to_str())
@@ -1870,7 +1892,10 @@ fn export_docx_images<R: Read + std::io::Seek>(
             index += 1;
         }
         fs::write(&output, bytes).map_err(to_err)?;
-        exported.insert(rid.clone(), format!("{}/{}", export.relative_dir, file_name));
+        exported.insert(
+            rid.clone(),
+            format!("{}/{}", export.relative_dir, file_name),
+        );
     }
 
     Ok(exported)
@@ -2111,7 +2136,10 @@ fn parse_docx_numbering(xml: &str) -> Result<DocxNumbering, String> {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => match e.name().as_ref() {
                 b"w:abstractNum" => current_abstract = docx_attr_value(&e, b"abstractNumId"),
-                b"w:lvl" => current_level = docx_attr_value(&e, b"ilvl").and_then(|value| value.parse().ok()),
+                b"w:lvl" => {
+                    current_level =
+                        docx_attr_value(&e, b"ilvl").and_then(|value| value.parse().ok())
+                }
                 b"w:numFmt" => {
                     if let (Some(abstract_id), Some(level), Some(value)) = (
                         current_abstract.clone(),
@@ -2235,7 +2263,11 @@ fn structured_docx_paragraph_to_markdown(
     }
 
     if let Some(level) = structured_docx_heading_level(paragraph, document) {
-        return Some(format!("{} {}", "#".repeat(level), normalize_docx_heading_text(&text)));
+        return Some(format!(
+            "{} {}",
+            "#".repeat(level),
+            normalize_docx_heading_text(&text)
+        ));
     }
 
     if is_probable_docx_toc_line(&text) {
@@ -2243,7 +2275,11 @@ fn structured_docx_paragraph_to_markdown(
     }
 
     if let Some(level) = docx_text_heading_level(&text) {
-        return Some(format!("{} {}", "#".repeat(level), normalize_docx_heading_text(&text)));
+        return Some(format!(
+            "{} {}",
+            "#".repeat(level),
+            normalize_docx_heading_text(&text)
+        ));
     }
 
     if paragraph.num_id.is_some() {
@@ -2292,7 +2328,10 @@ fn structured_docx_heading_level(
     None
 }
 
-fn structured_docx_list_marker(paragraph: &DocxParagraph, document: &StructuredDocx) -> &'static str {
+fn structured_docx_list_marker(
+    paragraph: &DocxParagraph,
+    document: &StructuredDocx,
+) -> &'static str {
     let Some(num_id) = paragraph.num_id.as_deref() else {
         return "-";
     };
@@ -2340,7 +2379,9 @@ fn structured_docx_table_to_markdown(
     let mut markdown = String::new();
     for (index, row) in rows.iter().enumerate() {
         let cells = (0..max_columns)
-            .map(|column| escape_markdown_table_cell(row.get(column).map(String::as_str).unwrap_or("")))
+            .map(|column| {
+                escape_markdown_table_cell(row.get(column).map(String::as_str).unwrap_or(""))
+            })
             .collect::<Vec<_>>();
         markdown.push_str("| ");
         markdown.push_str(&cells.join(" | "));
@@ -2457,7 +2498,11 @@ fn docx_paragraph_to_markdown(paragraph: &docx_lite::Paragraph) -> Option<String
     }
 
     if let Some(level) = docx_heading_level(paragraph.style.as_deref()) {
-        return Some(format!("{} {}", "#".repeat(level), normalize_docx_heading_text(&text)));
+        return Some(format!(
+            "{} {}",
+            "#".repeat(level),
+            normalize_docx_heading_text(&text)
+        ));
     }
 
     if is_probable_docx_toc_line(&text) {
@@ -2465,7 +2510,11 @@ fn docx_paragraph_to_markdown(paragraph: &docx_lite::Paragraph) -> Option<String
     }
 
     if let Some(level) = docx_text_heading_level(&text) {
-        return Some(format!("{} {}", "#".repeat(level), normalize_docx_heading_text(&text)));
+        return Some(format!(
+            "{} {}",
+            "#".repeat(level),
+            normalize_docx_heading_text(&text)
+        ));
     }
 
     if paragraph.numbering_id.is_some() {
@@ -2601,7 +2650,9 @@ fn docx_table_to_markdown(table: &docx_lite::Table) -> Option<String> {
     let mut markdown = String::new();
     for (index, row) in rows.iter().enumerate() {
         let cells = (0..max_columns)
-            .map(|column| escape_markdown_table_cell(row.get(column).map(String::as_str).unwrap_or("")))
+            .map(|column| {
+                escape_markdown_table_cell(row.get(column).map(String::as_str).unwrap_or(""))
+            })
             .collect::<Vec<_>>();
         markdown.push_str("| ");
         markdown.push_str(&cells.join(" | "));
@@ -2679,7 +2730,10 @@ fn should_join_pdf_line(current: &str, next: &str) -> bool {
     let Some(last) = current.chars().last() else {
         return false;
     };
-    !matches!(last, '。' | '！' | '？' | '.' | '!' | '?' | ':' | '：' | ';' | '；')
+    !matches!(
+        last,
+        '。' | '！' | '？' | '.' | '!' | '?' | ':' | '：' | ';' | '；'
+    )
 }
 
 fn format_pdf_block(block: &str) -> String {
@@ -2946,7 +3000,8 @@ mod tests {
         let file = fs::File::create(&docx_path).expect("create docx");
         let mut zip = zip::ZipWriter::new(file);
         let options = zip::write::FileOptions::default();
-        zip.start_file("word/document.xml", options).expect("document entry");
+        zip.start_file("word/document.xml", options)
+            .expect("document entry");
         zip.write_all(
             br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
 <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Intro</w:t></w:r></w:p>
@@ -2955,14 +3010,16 @@ mod tests {
 </w:body></w:document>"#,
         )
         .expect("write document");
-        zip.start_file("word/styles.xml", options).expect("styles entry");
+        zip.start_file("word/styles.xml", options)
+            .expect("styles entry");
         zip.write_all(
             br#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
 <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
 </w:styles>"#,
         )
         .expect("write styles");
-        zip.start_file("word/numbering.xml", options).expect("numbering entry");
+        zip.start_file("word/numbering.xml", options)
+            .expect("numbering entry");
         zip.write_all(
             br#"<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
 <w:abstractNum w:abstractNumId="3"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>
@@ -2990,7 +3047,8 @@ mod tests {
         let file = fs::File::create(&docx_path).expect("create docx");
         let mut zip = zip::ZipWriter::new(file);
         let options = zip::write::FileOptions::default();
-        zip.start_file("word/document.xml", options).expect("document entry");
+        zip.start_file("word/document.xml", options)
+            .expect("document entry");
         zip.write_all(
             br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>
 <w:p><w:r><w:t>Intro</w:t></w:r></w:p>
@@ -2998,15 +3056,18 @@ mod tests {
 </w:body></w:document>"#,
         )
         .expect("write document");
-        zip.start_file("word/_rels/document.xml.rels", options).expect("rels entry");
+        zip.start_file("word/_rels/document.xml.rels", options)
+            .expect("rels entry");
         zip.write_all(
             br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
 </Relationships>"#,
         )
         .expect("write rels");
-        zip.start_file("word/media/image1.png", options).expect("image entry");
-        zip.write_all(&[0x89, 0x50, 0x4e, 0x47]).expect("write image");
+        zip.start_file("word/media/image1.png", options)
+            .expect("image entry");
+        zip.write_all(&[0x89, 0x50, 0x4e, 0x47])
+            .expect("write image");
         zip.finish().expect("finish docx");
 
         let assets_dir = root.join("imports").join("docx").join("with-image.assets");
@@ -3020,7 +3081,9 @@ mod tests {
         .expect("convert docx");
 
         assert_eq!(converted.image_count, 1);
-        assert!(converted.markdown.contains("![image](with-image.assets/image1.png)"));
+        assert!(converted
+            .markdown
+            .contains("![image](with-image.assets/image1.png)"));
         assert!(assets_dir.join("image1.png").exists());
     }
 
