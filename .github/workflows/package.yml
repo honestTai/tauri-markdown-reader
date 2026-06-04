@@ -110,15 +110,21 @@ jobs:
           cat > RELEASE_NOTES.md <<'NOTES'
           ## 中文
 
-          Markdown Reader v0.1.3 继续打磨本地 Markdown 阅读、编辑和导出体验，并补齐中英文界面。
+          Markdown Reader v0.2.0 是一个本地优先的桌面 Markdown 阅读器和文档资料库，面向项目文档、PRD、README、会议记录、排障笔记和个人知识库。
 
           ### 新增与改进
 
-          - 新增中英文界面切换，覆盖操作按钮、右侧面板、样式选择和常见提示。
-          - README 新增中文 / 英文两张产品截图，方便快速了解界面。
-          - Markdown 样式预设补充英文名称，英文界面下展示更自然。
-          - 继续保留本地优先工作流：打开文件夹或单个 Markdown 文件、插入本地图片、大纲跳转、Word/PDF/HTML 导出。
-          - Word 和 PDF 导出继续支持图片，并内置中文 PDF 字体，不依赖用户额外安装转换器。
+          - 本地文档库：打开目录或单个 Markdown 文件，递归扫描常规文档目录，并自动忽略构建目录。
+          - 全文搜索：覆盖文件名、标题、frontmatter、正文和片段预览，搜索结果可直接打开命中文档。
+          - 快速打开：独立于侧栏搜索的 quick open，适合在大量文档中快速跳转。
+          - 阅读体验：三栏工作台、右侧大纲、字数统计、阅读时间、图片资源状态和每篇文档的滚动位置记忆。
+          - 收藏和置顶：状态保存在应用数据中，不会修改原 Markdown 文件。
+          - 专注模式：可隐藏文档库，并按设置保留或隐藏右侧大纲。
+          - 轻量编辑：支持源码编辑、未保存提示、保存前备份、本地图片插入和自动预览。
+          - 多格式导出：支持 Word `.docx`、PDF、Markdown、纯文本和阅读 HTML。
+          - 中英文界面与中英文 README：方便国内外用户快速了解和使用。
+          - 安全加固：Markdown 渲染经过 DOMPurify 净化，Tauri 使用严格 CSP，文件命令限制在已注册 Markdown 工作区内。
+          - 自动检查：CI 覆盖前端 lint/build/audit，以及 Rust fmt/clippy/test。
 
           - Windows x64: `.exe` 和 `.msi`
           - macOS Intel: `.app.tar.gz`
@@ -128,15 +134,21 @@ jobs:
 
           ## English
 
-          Markdown Reader v0.1.3 keeps refining the local Markdown reader, editor, and exporter experience with a cleaner bilingual interface.
+          Markdown Reader v0.2.0 is a local-first desktop Markdown reader and document library for project documents, PRDs, README files, meeting notes, troubleshooting records, and personal knowledge bases.
 
           ### Added and changed
 
-          - Add Chinese / English UI switching for operation buttons, panels, style labels, and common notices.
-          - Add README screenshots for both Chinese and English UI.
-          - Add English names for Markdown style presets.
-          - Keep the local-first workflow: open a folder or one Markdown file, insert local images, use outline navigation, and export Word/PDF/HTML.
-          - Keep image support in Word/PDF exports and bundled Chinese PDF font support without requiring external converters.
+          - Local document library: open a folder or a single Markdown file, recursively scan regular document folders, and ignore build directories.
+          - Full-text search: search filenames, titles, frontmatter, body text, and snippets, then open matched documents directly.
+          - Quick open: a dedicated quick-open flow isolated from sidebar search for fast document jumps.
+          - Reading experience: three-column workbench, right-side outline, word count, reading time, image resource status, and per-document scroll memory.
+          - Favorites and pinned documents: stored in app state without changing source Markdown files.
+          - Focus mode: hide the library and optionally keep the right outline panel.
+          - Light editing: source editing, unsaved-change prompts, save-before backup, local image insertion, and live preview.
+          - Multiple exports: Word `.docx`, PDF, Markdown, plain text, and reading HTML.
+          - Chinese / English UI plus bilingual README files for local and international users.
+          - Security hardening: Markdown rendering is sanitized with DOMPurify, Tauri uses a restrictive CSP, and file commands are scoped to registered Markdown workspaces.
+          - Automated checks: CI covers frontend lint/build/audit and Rust fmt/clippy/test.
 
           - Windows x64: `.exe` and `.msi`
           - macOS Intel: `.app.tar.gz`
