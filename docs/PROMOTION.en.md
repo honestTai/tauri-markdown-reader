@@ -29,7 +29,7 @@ I built Markdown Reader, a local-first Markdown document library for project doc
 
 It is not another Markdown editor. It is a local workbench for reading and searching PRDs, README files, technical plans, meeting notes, and troubleshooting logs. Open a folder, search across files, jump through outlines, restore reading positions, favorite or pin important docs, make light edits, and export to Word/PDF/HTML.
 
-Built with Tauri + React + TypeScript. Windows and macOS builds are available.
+Built with Tauri + React + TypeScript. Windows and macOS Apple Silicon / M-series builds are available.
 
 GitHub: https://github.com/honestTai/tauri-markdown-reader
 

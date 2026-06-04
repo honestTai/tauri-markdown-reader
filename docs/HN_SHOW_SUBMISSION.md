@@ -25,7 +25,7 @@ Features:
 - Export to Word, PDF, Markdown, plain text, and reading HTML
 - Bundled `md-reader` CLI for local agent workflows
 - Tauri + React + TypeScript
-- Windows and macOS builds
+- Windows and macOS Apple Silicon / M-series builds
 
 Repo:
 https://github.com/honestTai/tauri-markdown-reader

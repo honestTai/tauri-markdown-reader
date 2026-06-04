@@ -27,14 +27,6 @@ jobs:
             bundle-path: |
               src-tauri/target/release/bundle/**/*.exe
               src-tauri/target/release/bundle/**/*.msi
-          - name: macOS Intel
-            os: macos-15-intel
-            artifact-name: markdown-reader-macos-intel
-            archive-macos: "true"
-            archive-suffix: macos-intel
-            build-command: npm run tauri:build -- --bundles app --no-sign
-            bundle-path: |
-              macos-bundle/*.tar.gz
           - name: macOS Apple Silicon
             os: macos-latest
             artifact-name: markdown-reader-macos-apple-silicon

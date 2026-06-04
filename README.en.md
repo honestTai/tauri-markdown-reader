@@ -59,10 +59,9 @@ Release builds are published on GitHub Releases:
 Current build targets:
 
 - Windows x64: NSIS `.exe` installer and `.msi`
-- macOS Intel: `.app.tar.gz`
-- macOS Apple Silicon: `.app.tar.gz`
+- macOS Apple Silicon / M-series: `.app.tar.gz`
 
-If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
+Only macOS Apple Silicon / M-series builds are published; Intel Mac bundles are no longer supported. If the macOS build is not Apple-signed or notarized, the first launch may require right-clicking the app in Finder and choosing "Open".
 
 ## CLI
 
@@ -102,7 +101,7 @@ git tag v0.3.0
 git push origin main v0.3.0
 ```
 
-The workflow builds Windows installers plus macOS Intel / Apple Silicon `.app` archives and uploads them to the matching Release. Current Windows local bundles are also uploaded manually as release assets.
+The workflow builds Windows installers plus macOS Apple Silicon / M-series `.app` archives and uploads them to the matching Release. Current Windows local bundles are also uploaded manually as release assets.
 
 ## Promotion Assets
 
