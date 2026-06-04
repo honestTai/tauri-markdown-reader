@@ -1987,12 +1987,11 @@ fn parse_docx_document_xml(
                 b"a:blip" => set_docx_run_image(&mut paragraph, &mut run, &e),
                 _ => {}
             },
-            Ok(Event::Text(e)) => {
-                if in_text {
-                    let text = e.unescape().map_err(to_err)?.into_owned();
-                    push_docx_run_text(&mut run, &text);
-                }
+            Ok(Event::Text(e)) if in_text => {
+                let text = e.unescape().map_err(to_err)?.into_owned();
+                push_docx_run_text(&mut run, &text);
             }
+            Ok(Event::Text(_)) => {}
             Ok(Event::End(e)) => match e.name().as_ref() {
                 b"w:t" => in_text = false,
                 b"w:r" => {
@@ -2204,7 +2203,7 @@ impl DocxParagraph {
                     text.push_str(&format!("![image]({relative_path})"));
                 }
             }
-            let value = run.text.replace('\t', " ").replace('\n', " ");
+            let value = run.text.replace(['\t', '\n'], " ");
             if value.trim().is_empty() {
                 text.push_str(&value);
             } else if run.bold && run.italic {

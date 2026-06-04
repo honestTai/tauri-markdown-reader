@@ -11,7 +11,7 @@
 - Drag-and-drop handling for folders, Markdown files, PDF files, DOCX files, and images.
 - Built-in usage help with Chinese and English copy.
 - Keyboard shortcuts for open, save, quick open, search focus, mode switching, image insertion, and PDF/DOCX import.
-- Bundled `md-reader.exe` CLI sidecar for GUI installs and local Agent workflows.
+- Bundled the `md-reader` CLI sidecar (`md-reader.exe` on Windows) for GUI installs and local Agent workflows.
 - New README demo GIF covering basic operation, import, and export.
 - Hacker News Show HN submission draft.
 

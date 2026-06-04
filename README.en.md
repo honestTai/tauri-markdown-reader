@@ -25,7 +25,7 @@ Markdown Reader is not a cloud note app or a heavy IDE. It is a desktop document
 - DOCX to Markdown draft conversion with headings, lists, tables, and images where possible.
 - Drag folders, Markdown files, PDF files, DOCX files, or images into the window.
 - Export Word, PDF, reading HTML, and copy Markdown, plain text, or HTML.
-- The GUI installer ships `md-reader.exe` for system shells, Codex, and other agents.
+- The GUI installer ships the `md-reader` CLI (`md-reader.exe` on Windows) for system shells, Codex, and other agents.
 - Chinese / English interface switching.
 - DOMPurify Markdown sanitization, strict CSP, and workspace-scoped file commands.
 
@@ -66,14 +66,14 @@ If the macOS build is not Apple-signed or notarized, the first launch may requir
 
 ## CLI
 
-The GUI installer also ships `md-reader.exe`. You can also build and run it locally:
+The GUI installer also ships the `md-reader` CLI (`md-reader.exe` on Windows). You can also build and run it locally:
 
 ```bash
 cargo build --manifest-path src-tauri/Cargo.toml --release --bin md-reader
-src-tauri/target/release/md-reader.exe convert input.docx --to md --out ./output --json
-src-tauri/target/release/md-reader.exe inspect input.pdf --json
-src-tauri/target/release/md-reader.exe search ./docs --query "keyword" --json
-src-tauri/target/release/md-reader.exe read ./docs/example.md --json
+src-tauri/target/release/md-reader convert input.docx --to md --out ./output --json
+src-tauri/target/release/md-reader inspect input.pdf --json
+src-tauri/target/release/md-reader search ./docs --query "keyword" --json
+src-tauri/target/release/md-reader read ./docs/example.md --json
 ```
 
 DOCX conversion writes images to a Markdown-matching `.assets` folder, which keeps the result editable and useful for local agent workflows.

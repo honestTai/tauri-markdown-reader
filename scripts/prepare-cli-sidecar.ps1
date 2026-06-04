@@ -1,11 +1,17 @@
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$cargoToml = Join-Path $repoRoot 'src-tauri\Cargo.toml'
-$releaseDir = Join-Path $repoRoot 'src-tauri\target\release'
-$source = Join-Path $releaseDir 'md-reader.exe'
+$tauriDir = Join-Path $repoRoot 'src-tauri'
+$cargoToml = Join-Path $tauriDir 'Cargo.toml'
+$releaseDir = Join-Path (Join-Path $tauriDir 'target') 'release'
+$isWindows = [System.Environment]::OSVersion.Platform -eq 'Win32NT' -or $env:OS -eq 'Windows_NT'
+$exeExt = if ($isWindows) { '.exe' } else { '' }
+$source = Join-Path $releaseDir "md-reader$exeExt"
 
 cargo build --manifest-path $cargoToml --release --bin md-reader
+if ($LASTEXITCODE -ne 0) {
+  throw "CLI build failed with exit code $LASTEXITCODE"
+}
 
 if (-not (Test-Path -LiteralPath $source)) {
   throw "CLI build did not produce $source"

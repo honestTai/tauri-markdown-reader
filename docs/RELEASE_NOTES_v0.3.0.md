@@ -10,7 +10,7 @@ V3 focuses on import, export, image handling, and a stable GUI + CLI workflow.
 - Edit mode supports local image insertion, dropped images, and pasted screenshots.
 - Drag folders, Markdown, PDF, DOCX, or image files into the app.
 - Export Word, PDF, reading HTML, Markdown, plain text, and copied HTML.
-- GUI installs include `md-reader.exe` for system terminals, Codex, and other Agent tools.
+- GUI installs include the `md-reader` CLI (`md-reader.exe` on Windows) for system terminals, Codex, and other Agent tools.
 - New README GIF covering basic operation, import, and export.
 
 ## Note About Terminal
