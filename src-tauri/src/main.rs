@@ -506,13 +506,13 @@ fn list_article_history(request: ArticleHistoryRequest) -> Result<Vec<ArticleHis
 }
 
 fn article_history_items(article_path: &Path) -> Result<Vec<ArticleHistoryItem>, String> {
-    let backup_dir = article_backup_dir(&article_path)?;
+    let backup_dir = article_backup_dir(article_path)?;
     if !backup_dir.exists() {
         return Ok(Vec::new());
     }
 
-    let stem = article_backup_stem(&article_path);
-    let extension = article_backup_extension(&article_path);
+    let stem = article_backup_stem(article_path);
+    let extension = article_backup_extension(article_path);
     let prefix = format!("{stem}-");
     let suffix = format!(".{extension}");
     let mut items = Vec::new();
