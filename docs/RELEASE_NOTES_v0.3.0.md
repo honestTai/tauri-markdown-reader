@@ -2,6 +2,15 @@
 
 V3 focuses on import, export, image handling, and a stable GUI + CLI workflow.
 
+Rendering polish added after the first V3 release:
+
+- Syntax-highlighted code blocks with copy buttons.
+- KaTeX inline and block formulas.
+- Mermaid diagrams.
+- GFM table styling and GitHub-style callouts.
+- Editor selection shortcuts for bold, italic, links, math, tables, code blocks, Mermaid diagrams, quotes, lists, and tasks.
+- Built-in Markdown help guide opened from the Help window.
+
 ## Highlights
 
 - PDF to Markdown draft import.
@@ -11,6 +20,7 @@ V3 focuses on import, export, image handling, and a stable GUI + CLI workflow.
 - Drag folders, Markdown, PDF, DOCX, or image files into the app.
 - Export Word, PDF, reading HTML, Markdown, plain text, and copied HTML.
 - GUI installs include the `md-reader` CLI (`md-reader.exe` on Windows) for system terminals, Codex, and other Agent tools.
+- CLI now covers list, import/convert, export to md/txt/html, inspect, search, read, save with backup, history-read, and restore.
 - New README GIF covering basic operation, import, and export.
 
 ## Note About Terminal

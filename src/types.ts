@@ -37,7 +37,7 @@ export interface ImportDocxResponse {
 
 export type PanelTab = 'outline' | 'actions' | 'settings'
 
-export type ReadMode = 'desktop' | 'source' | 'edit'
+export type ReadMode = 'desktop' | 'edit'
 
 export type SortMode = 'updated' | 'name' | 'path'
 
@@ -98,6 +98,13 @@ export interface SearchResult {
   score: number
 }
 
+export interface ArticleHistoryItem {
+  path: string
+  fileName: string
+  modified: number
+  size: number
+}
+
 export interface ReaderSettings {
   default_workspace: string
   default_read_mode: ReadMode
@@ -113,6 +120,7 @@ export interface ReaderState {
   recent_files: string[]
   favorites: string[]
   pinned: string[]
+  locked: string[]
   reading_positions: Record<string, number>
   last_workspace: string
   last_file: string

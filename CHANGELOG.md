@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.5.0 - 2026-06-05
+
+### Added
+
+- Added syntax-highlighted code blocks with copy buttons, KaTeX math, Mermaid diagrams, GFM tables, and GitHub-style callouts.
+- Added editor selection shortcuts, a right-click selection menu, and reusable Markdown snippets for tables, math, code, Mermaid, callouts, frontmatter, tasks, footnotes, details, and images.
+- Added built-in Chinese and English Markdown guides that open directly inside the reader.
+- Added document locking so protected files cannot be saved, restored from history, or modified by image insertion.
+- Added edit history listing, preview, and restore based on the existing save-before-backup storage.
+- Expanded the `md-reader` CLI with list, import, export, save, history-read, and restore workflows.
+
+### Changed
+
+- Reworked the library and side panels into floating panels to keep the reading canvas cleaner.
+- Simplified the main mode switch to Read and Edit while keeping Markdown source editing as the editing surface.
+- Refreshed the README and release notes for the v3.5 release.
+
+### Fixed
+
+- Fixed GitHub issue #2 by making favorite, pinned, and lock row action icons explicit fixed-size Lucide icons with visible SVG styling.
+- Improved search result highlighting and line labels in the library panel.
+
 ## v0.3.0 - 2026-06-04
 
 ### Added

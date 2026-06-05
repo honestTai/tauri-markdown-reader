@@ -26,7 +26,7 @@ Markdown Reader V2 is a local Markdown reading and document-retrieval workstatio
 ## Information Architecture
 
 - Left: document library, search, filters, favorites, pinned docs, recent docs.
-- Center: reading, source, and edit modes.
+- Center: reading and edit modes. Edit is the Markdown source view.
 - Right: outline, document information, image status, copy/export actions, settings.
 
 ## Storage

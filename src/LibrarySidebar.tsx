@@ -2,10 +2,12 @@ import {
   FileSearch,
   FileText,
   FolderOpen,
+  Lock,
   Pin,
   Search,
   SlidersHorizontal,
   Star,
+  X,
 } from 'lucide-react'
 import {
   formatArticleCount,
@@ -26,6 +28,7 @@ export function LibrarySidebar({
   language,
   libraryFilter,
   loading,
+  lockedSet,
   pinnedSet,
   query,
   searchResults,
@@ -41,7 +44,9 @@ export function LibrarySidebar({
   onSelectArticle,
   onSortChange,
   onToggleFavorite,
+  onToggleLocked,
   onTogglePinned,
+  onClose,
 }: {
   articles: ArticleSummary[]
   favoriteSet: Set<string>
@@ -49,6 +54,7 @@ export function LibrarySidebar({
   language: Language
   libraryFilter: LibraryFilter
   loading: boolean
+  lockedSet: Set<string>
   pinnedSet: Set<string>
   query: string
   searchResults: SearchResult[]
@@ -64,13 +70,20 @@ export function LibrarySidebar({
   onSelectArticle: (path: string) => void
   onSortChange: (sort: SortMode) => void
   onToggleFavorite: (path: string) => void
+  onToggleLocked: (path: string) => void
   onTogglePinned: (path: string) => void
+  onClose: () => void
 }) {
   return (
-    <aside className="sidebar">
+    <aside className="sidebar library-floating-panel">
       <div className="sidebar-head">
-        <span>{text.documents}</span>
-        <small>{loading ? text.loading : formatArticleCount(visibleCount || articles.length, language)}</small>
+        <div>
+          <span>{text.documents}</span>
+          <small>{loading ? text.loading : formatArticleCount(visibleCount || articles.length, language)}</small>
+        </div>
+        <button className="panel-toggle" onClick={onClose} title={text.drawerClose}>
+          <X size={15} />
+        </button>
       </div>
       <label className="search-box">
         <Search size={15} />
@@ -106,9 +119,9 @@ export function LibrarySidebar({
             {searchResults.slice(0, 18).map((result) => (
               <button className={`search-result ${result.path === selectedPath ? 'is-active' : ''}`} key={`${result.path}-${result.line}`} onClick={() => onSelectArticle(result.path)}>
                 <FileSearch size={15} />
-                <span>{result.title || result.file_name}</span>
-                <small>{result.heading || result.relative_path}</small>
-                <p>{result.snippet}</p>
+                <span><HighlightedText value={result.title || result.file_name} term={query} /></span>
+                <small>{result.heading || result.relative_path} · {text.lineLabel(result.line)}</small>
+                <p><HighlightedText value={result.snippet} term={query} /></p>
               </button>
             ))}
             {searchResults.length === 0 && <div className="empty-mini">{text.noSearchResults}</div>}
@@ -123,11 +136,14 @@ export function LibrarySidebar({
                   <span>{article.title || article.file_name}</span>
                   <small>{article.relative_path || article.file_name}</small>
                 </button>
-                <button className={favoriteSet.has(article.path) ? 'row-tool is-active' : 'row-tool'} onClick={() => onToggleFavorite(article.path)} title={favoriteSet.has(article.path) ? text.unfavorite : text.favorite}>
-                  <Star size={14} />
+                <button className={favoriteSet.has(article.path) ? 'row-tool is-active' : 'row-tool'} onClick={() => onToggleFavorite(article.path)} aria-label={favoriteSet.has(article.path) ? text.unfavorite : text.favorite}>
+                  <Star size={16} strokeWidth={2.2} />
                 </button>
-                <button className={pinnedSet.has(article.path) ? 'row-tool is-active' : 'row-tool'} onClick={() => onTogglePinned(article.path)} title={pinnedSet.has(article.path) ? text.unpin : text.pin}>
-                  <Pin size={14} />
+                <button className={pinnedSet.has(article.path) ? 'row-tool is-active' : 'row-tool'} onClick={() => onTogglePinned(article.path)} aria-label={pinnedSet.has(article.path) ? text.unpin : text.pin}>
+                  <Pin size={16} strokeWidth={2.2} />
+                </button>
+                <button className={lockedSet.has(article.path) ? 'row-tool is-active lock-tool' : 'row-tool'} onClick={() => onToggleLocked(article.path)} aria-label={lockedSet.has(article.path) ? text.unlock : text.lock}>
+                  <Lock size={16} strokeWidth={2.2} />
                 </button>
               </div>
             ))}
@@ -143,5 +159,21 @@ export function LibrarySidebar({
         )}
       </div>
     </aside>
+  )
+}
+
+function HighlightedText({ value, term }: { value: string; term: string }) {
+  const normalized = term.trim()
+  if (!normalized) return <>{value}</>
+  const lowerValue = value.toLowerCase()
+  const lowerTerm = normalized.toLowerCase()
+  const index = lowerValue.indexOf(lowerTerm)
+  if (index < 0) return <>{value}</>
+  return (
+    <>
+      {value.slice(0, index)}
+      <mark>{value.slice(index, index + normalized.length)}</mark>
+      {value.slice(index + normalized.length)}
+    </>
   )
 }

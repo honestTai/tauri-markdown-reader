@@ -61,10 +61,32 @@ struct SearchResult {
     score: usize,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArticleHistoryItem {
+    path: String,
+    file_name: String,
+    modified: u64,
+    size: u64,
+}
+
 #[derive(Debug, Deserialize)]
 struct SaveArticleRequest {
     path: String,
     content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ArticleHistoryRequest {
+    article_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreArticleHistoryRequest {
+    article_path: String,
+    history_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -273,6 +295,15 @@ struct CliReadOutput {
     content: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CliExportOutput {
+    input_path: String,
+    output_path: String,
+    format: String,
+    char_count: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 struct ReaderSettings {
@@ -306,6 +337,7 @@ struct ReaderState {
     recent_files: Vec<String>,
     favorites: Vec<String>,
     pinned: Vec<String>,
+    locked: Vec<String>,
     reading_positions: HashMap<String, f64>,
     last_workspace: String,
     last_file: String,
@@ -321,6 +353,7 @@ impl Default for ReaderState {
             recent_files: Vec::new(),
             favorites: Vec::new(),
             pinned: Vec::new(),
+            locked: Vec::new(),
             reading_positions: HashMap::new(),
             last_workspace: String::new(),
             last_file: String::new(),
@@ -334,6 +367,11 @@ impl Default for ReaderState {
 #[tauri::command]
 fn initial_open_path() -> Option<String> {
     initial_open_path_from_args(std::env::args())
+}
+
+#[tauri::command]
+fn force_close_app() {
+    std::process::exit(0);
 }
 
 #[tauri::command]
@@ -458,6 +496,78 @@ fn save_article(request: SaveArticleRequest) -> Result<ArticlePayload, String> {
     let article_path = scoped_markdown_path(&request.path)?;
     backup_article(&article_path)?;
     fs::write(&article_path, request.content).map_err(to_err)?;
+    read_article(article_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn list_article_history(request: ArticleHistoryRequest) -> Result<Vec<ArticleHistoryItem>, String> {
+    let article_path = scoped_markdown_path(&request.article_path)?;
+    article_history_items(&article_path)
+}
+
+fn article_history_items(article_path: &Path) -> Result<Vec<ArticleHistoryItem>, String> {
+    let backup_dir = article_backup_dir(&article_path)?;
+    if !backup_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let stem = article_backup_stem(&article_path);
+    let extension = article_backup_extension(&article_path);
+    let prefix = format!("{stem}-");
+    let suffix = format!(".{extension}");
+    let mut items = Vec::new();
+
+    for entry in fs::read_dir(&backup_dir).map_err(to_err)? {
+        let entry = entry.map_err(to_err)?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !file_name.starts_with(&prefix) || !file_name.ends_with(&suffix) {
+            continue;
+        }
+        let metadata = entry.metadata().map_err(to_err)?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        items.push(ArticleHistoryItem {
+            path: path.to_string_lossy().to_string(),
+            file_name: file_name.to_string(),
+            modified,
+            size: metadata.len(),
+        });
+    }
+
+    items.sort_by(|a, b| {
+        b.modified
+            .cmp(&a.modified)
+            .then_with(|| b.file_name.cmp(&a.file_name))
+    });
+    items.truncate(80);
+    Ok(items)
+}
+
+#[tauri::command]
+fn read_article_history(request: RestoreArticleHistoryRequest) -> Result<String, String> {
+    let article_path = scoped_markdown_path(&request.article_path)?;
+    let history_path = scoped_article_history_path(&article_path, &request.history_path)?;
+    fs::read_to_string(history_path).map_err(to_err)
+}
+
+#[tauri::command]
+fn restore_article_history(
+    request: RestoreArticleHistoryRequest,
+) -> Result<ArticlePayload, String> {
+    let article_path = scoped_markdown_path(&request.article_path)?;
+    let history_path = scoped_article_history_path(&article_path, &request.history_path)?;
+    backup_article(&article_path)?;
+    fs::copy(history_path, &article_path).map_err(to_err)?;
     read_article(article_path.to_string_lossy().to_string())
 }
 
@@ -821,14 +931,44 @@ fn run_cli_inner(args: &[String]) -> Result<(), String> {
     }
 
     match command {
+        "list" => cli_list(args),
+        "import" => cli_import(args),
         "convert" => cli_convert(args),
+        "export" => cli_export(args),
         "inspect" => cli_inspect(args),
         "search" => cli_search(args),
         "read" => cli_read(args),
+        "save" => cli_save(args),
+        "history" => cli_history(args),
+        "history-read" => cli_history_read(args),
+        "restore" => cli_restore(args),
         _ => Err(format!(
             "未知 CLI 命令：{command}\n\n运行 md-reader --help 查看用法。"
         )),
     }
+}
+
+fn cli_list(args: &[String]) -> Result<(), String> {
+    let workspace = args
+        .get(1)
+        .ok_or_else(|| "用法：md-reader list <workspace> [--json]".to_string())?;
+    let json = cli_has_flag(args, "--json");
+    let articles = scan_workspace(workspace.to_string())?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&articles).map_err(to_err)?
+        );
+    } else {
+        for article in articles {
+            println!("{}  {}", article.relative_path, article.title);
+        }
+    }
+    Ok(())
+}
+
+fn cli_import(args: &[String]) -> Result<(), String> {
+    cli_convert(args)
 }
 
 fn cli_convert(args: &[String]) -> Result<(), String> {
@@ -911,6 +1051,51 @@ fn cli_convert(args: &[String]) -> Result<(), String> {
         if let Some(path) = assets_dir {
             println!("图片目录：{}", path.to_string_lossy());
         }
+    }
+    Ok(())
+}
+
+fn cli_export(args: &[String]) -> Result<(), String> {
+    let input = args.get(1).ok_or_else(|| {
+        "用法：md-reader export <article.md> --to md|txt|html --out <path> [--json]".to_string()
+    })?;
+    let json = cli_has_flag(args, "--json");
+    let format = cli_option(args, "--to").unwrap_or_else(|| "html".to_string());
+    let extension = match format.as_str() {
+        "md" | "markdown" => "md",
+        "txt" | "text" => "txt",
+        "html" | "reading-html" => "html",
+        _ => {
+            return Err(
+                "当前 CLI 导出支持 --to md、txt、html。Word/PDF 请使用 GUI 导出。".to_string(),
+            )
+        }
+    };
+    let article_path = cli_markdown_path(input)?;
+    let raw = fs::read_to_string(&article_path).map_err(to_err)?;
+    let output_arg = cli_option(args, "--out").unwrap_or_else(|| ".".to_string());
+    let output_path =
+        resolve_cli_export_output(&article_path, &PathBuf::from(output_arg), extension)?;
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(to_err)?;
+    }
+    let content = match extension {
+        "md" => raw.clone(),
+        "txt" => markdown_to_plain_text(&raw),
+        "html" => build_cli_reading_html(&raw),
+        _ => unreachable!(),
+    };
+    fs::write(&output_path, content.as_bytes()).map_err(to_err)?;
+    let result = CliExportOutput {
+        input_path: article_path.to_string_lossy().to_string(),
+        output_path: output_path.to_string_lossy().to_string(),
+        format: extension.to_string(),
+        char_count: content.chars().filter(|ch| !ch.is_whitespace()).count(),
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result).map_err(to_err)?);
+    } else {
+        println!("已导出：{}", result.output_path);
     }
     Ok(())
 }
@@ -1016,6 +1201,116 @@ fn cli_read(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn cli_save(args: &[String]) -> Result<(), String> {
+    let input = args.get(1).ok_or_else(|| {
+        "用法：md-reader save <article.md> (--in <content.md>|--content <text>) [--json]"
+            .to_string()
+    })?;
+    let json = cli_has_flag(args, "--json");
+    let article_path = cli_markdown_path(input)?;
+    let content = if let Some(input_file) = cli_option(args, "--in") {
+        fs::read_to_string(PathBuf::from(input_file)).map_err(to_err)?
+    } else if let Some(value) = cli_option(args, "--content") {
+        value
+    } else {
+        return Err("缺少 --in 或 --content。".to_string());
+    };
+    backup_article(&article_path)?;
+    fs::write(&article_path, content).map_err(to_err)?;
+    let saved = fs::read_to_string(&article_path).map_err(to_err)?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&CliReadOutput {
+                path: article_path.to_string_lossy().to_string(),
+                content: saved
+            })
+            .map_err(to_err)?
+        );
+    } else {
+        println!("已保存：{}", article_path.to_string_lossy());
+        println!("保存前已备份当前内容。");
+    }
+    Ok(())
+}
+
+fn cli_history(args: &[String]) -> Result<(), String> {
+    let input = args
+        .get(1)
+        .ok_or_else(|| "用法：md-reader history <article.md> [--json]".to_string())?;
+    let json = cli_has_flag(args, "--json");
+    let article_path = cli_markdown_path(input)?;
+    let items = article_history_items(&article_path)?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&items).map_err(to_err)?);
+    } else if items.is_empty() {
+        println!("没有保存前版本。");
+    } else {
+        for item in items {
+            println!("{}  {} bytes  {}", item.file_name, item.size, item.path);
+        }
+    }
+    Ok(())
+}
+
+fn cli_history_read(args: &[String]) -> Result<(), String> {
+    let input = args.get(1).ok_or_else(|| {
+        "用法：md-reader history-read <article.md> --history <backup.md> [--json]".to_string()
+    })?;
+    let history = cli_option(args, "--history")
+        .or_else(|| cli_option(args, "-h"))
+        .ok_or_else(|| "缺少 --history。".to_string())?;
+    let json = cli_has_flag(args, "--json");
+    let article_path = cli_markdown_path(input)?;
+    let history_path = cli_article_history_path(&article_path, &history)?;
+    let content = fs::read_to_string(&history_path).map_err(to_err)?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&CliReadOutput {
+                path: history_path.to_string_lossy().to_string(),
+                content
+            })
+            .map_err(to_err)?
+        );
+    } else {
+        print!("{content}");
+    }
+    Ok(())
+}
+
+fn cli_restore(args: &[String]) -> Result<(), String> {
+    let input = args.get(1).ok_or_else(|| {
+        "用法：md-reader restore <article.md> --history <backup.md> [--json]".to_string()
+    })?;
+    let history = cli_option(args, "--history")
+        .or_else(|| cli_option(args, "-h"))
+        .ok_or_else(|| "缺少 --history。".to_string())?;
+    let json = cli_has_flag(args, "--json");
+    let article_path = cli_markdown_path(input)?;
+    let history_path = cli_article_history_path(&article_path, &history)?;
+    backup_article(&article_path)?;
+    fs::copy(&history_path, &article_path).map_err(to_err)?;
+    let content = fs::read_to_string(&article_path).map_err(to_err)?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&CliReadOutput {
+                path: article_path.to_string_lossy().to_string(),
+                content
+            })
+            .map_err(to_err)?
+        );
+    } else {
+        println!("已恢复：{}", article_path.to_string_lossy());
+        println!("恢复前已备份当前内容。");
+    }
+    Ok(())
+}
+
 fn cli_option(args: &[String], name: &str) -> Option<String> {
     args.windows(2)
         .find_map(|window| (window[0] == name).then(|| window[1].clone()))
@@ -1117,14 +1412,38 @@ fn resolve_cli_markdown_output(input_path: &Path, output: &Path) -> Result<PathB
     Ok(output.join(format!("{stem}.md")))
 }
 
+fn resolve_cli_export_output(
+    input_path: &Path,
+    output: &Path,
+    extension: &str,
+) -> Result<PathBuf, String> {
+    let stem = input_path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .map(sanitize_asset_segment)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "document".to_string());
+    if output.extension().is_none() || output.is_dir() {
+        return Ok(output.join(format!("{stem}.{extension}")));
+    }
+    Ok(output.to_path_buf())
+}
+
 fn print_cli_help() {
     println!(
         "Markdown Reader CLI\n\n\
 Usage:\n\
+  md-reader list <workspace> [--json]\n\
+  md-reader import <input.pdf|input.docx> --to md --out <path> [--json]\n\
   md-reader convert <input.pdf|input.docx> --to md --out <path> [--json]\n\
+  md-reader export <article.md> --to md|txt|html --out <path> [--json]\n\
   md-reader inspect <input.pdf|input.docx> [--json]\n\
   md-reader search <workspace> --query <text> [--json]\n\
-  md-reader read <article.md> [--json]\n"
+  md-reader read <article.md> [--json]\n\
+  md-reader save <article.md> (--in <content.md>|--content <text>) [--json]\n\
+  md-reader history <article.md> [--json]\n\
+  md-reader history-read <article.md> --history <backup.md> [--json]\n\
+  md-reader restore <article.md> --history <backup.md> [--json]\n"
     );
 }
 
@@ -1133,10 +1452,14 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             initial_open_path,
+            force_close_app,
             scan_workspace,
             search_workspace,
             read_article,
             save_article,
+            list_article_history,
+            read_article_history,
+            restore_article_history,
             import_pdf_as_markdown,
             import_docx_as_markdown,
             load_reader_state,
@@ -1174,6 +1497,185 @@ fn parse_frontmatter(raw: &str) -> (String, String) {
         }
     }
     (title, digest)
+}
+
+fn article_body(raw: &str) -> String {
+    let normalized = raw.trim_start_matches('\u{feff}');
+    if !normalized.starts_with("---") {
+        return normalized.trim().to_string();
+    }
+    let Some(rest) = normalized.strip_prefix("---") else {
+        return normalized.trim().to_string();
+    };
+    let rest = rest.trim_start_matches(['\r', '\n']);
+    if let Some(index) = rest.find("\n---") {
+        return rest[index + 4..]
+            .trim_start_matches(['\r', '\n'])
+            .trim()
+            .to_string();
+    }
+    normalized.trim().to_string()
+}
+
+fn markdown_to_plain_text(raw: &str) -> String {
+    let body = article_body(raw);
+    let fenced = Regex::new(r"(?s)```.*?```").expect("valid fenced regex");
+    let images = Regex::new(r"!\[([^\]]*)\]\([^)]+\)").expect("valid image regex");
+    let links = Regex::new(r"\[([^\]]+)\]\([^)]+\)").expect("valid link regex");
+    let headings = Regex::new(r"(?m)^#{1,6}\s+").expect("valid heading regex");
+    let markers = Regex::new(r#"[*_`>~]"#).expect("valid marker regex");
+    let whitespace = Regex::new(r"\n{3,}").expect("valid whitespace regex");
+    let text = fenced.replace_all(&body, "");
+    let text = images.replace_all(&text, "$1");
+    let text = links.replace_all(&text, "$1");
+    let text = headings.replace_all(&text, "");
+    let text = markers.replace_all(&text, "");
+    whitespace.replace_all(text.trim(), "\n\n").to_string()
+}
+
+fn build_cli_reading_html(raw: &str) -> String {
+    let (frontmatter_title, digest) = parse_frontmatter(raw);
+    let body = article_body(raw);
+    let title = if frontmatter_title.trim().is_empty() {
+        first_markdown_heading(&body).unwrap_or_else(|| "Markdown".to_string())
+    } else {
+        frontmatter_title
+    };
+    let body_html = markdown_body_to_basic_html(&body);
+    format!(
+        r#"<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;" />
+  <title>{}</title>
+  <style>
+    body{{margin:0;background:#eef1f4;color:#26323d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}}
+    main{{max-width:900px;margin:32px auto;padding:42px 52px;background:#fff;border:1px solid #e0e5e9;border-radius:8px;}}
+    h1{{margin:0 0 12px;font-size:30px;line-height:1.35;}}
+    .digest{{margin:0 0 28px;color:#687783;line-height:1.7;}}
+    article{{font-size:17px;line-height:1.88;}}
+    pre{{overflow:auto;padding:14px 16px;background:#f7f9fb;border:1px solid #d8e0e7;border-radius:8px;}}
+    code{{font-family:Consolas,Menlo,monospace;}}
+    blockquote{{margin:18px 0;padding:10px 14px;border-left:4px solid #b7c6d8;background:#f7f9fb;color:#43515f;}}
+    table{{width:100%;border-collapse:collapse;margin:18px 0;}}
+    th,td{{padding:8px 10px;border:1px solid #d8e0e7;text-align:left;}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{}</h1>
+    {}
+    <article>{}</article>
+  </main>
+</body>
+</html>
+"#,
+        escape_html(&title),
+        escape_html(&title),
+        if digest.trim().is_empty() {
+            String::new()
+        } else {
+            format!(r#"<p class="digest">{}</p>"#, escape_html(&digest))
+        },
+        body_html
+    )
+}
+
+fn first_markdown_heading(body: &str) -> Option<String> {
+    body.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix('#')
+            .map(|value| value.trim_start_matches('#').trim().to_string())
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn markdown_body_to_basic_html(body: &str) -> String {
+    let mut html = String::new();
+    let mut paragraph = Vec::new();
+    let mut in_code = false;
+    let mut code = String::new();
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            flush_paragraph(&mut html, &mut paragraph);
+            if in_code {
+                html.push_str("<pre><code>");
+                html.push_str(&escape_html(&code));
+                html.push_str("</code></pre>\n");
+                code.clear();
+                in_code = false;
+            } else {
+                in_code = true;
+            }
+            continue;
+        }
+        if in_code {
+            code.push_str(line);
+            code.push('\n');
+            continue;
+        }
+        if trimmed.is_empty() {
+            flush_paragraph(&mut html, &mut paragraph);
+            continue;
+        }
+        if let Some(heading) = markdown_heading(trimmed) {
+            flush_paragraph(&mut html, &mut paragraph);
+            html.push_str(&format!(
+                "<h{}>{}</h{}>\n",
+                heading.0,
+                escape_html(heading.1),
+                heading.0
+            ));
+            continue;
+        }
+        if let Some(quote) = trimmed.strip_prefix("> ") {
+            flush_paragraph(&mut html, &mut paragraph);
+            html.push_str("<blockquote>");
+            html.push_str(&escape_html(quote));
+            html.push_str("</blockquote>\n");
+            continue;
+        }
+        paragraph.push(trimmed.to_string());
+    }
+    if in_code {
+        html.push_str("<pre><code>");
+        html.push_str(&escape_html(&code));
+        html.push_str("</code></pre>\n");
+    }
+    flush_paragraph(&mut html, &mut paragraph);
+    html
+}
+
+fn markdown_heading(line: &str) -> Option<(usize, &str)> {
+    let level = line.chars().take_while(|ch| *ch == '#').count();
+    if !(1..=6).contains(&level) {
+        return None;
+    }
+    line[level..]
+        .strip_prefix(' ')
+        .map(|value| (level, value.trim()))
+}
+
+fn flush_paragraph(html: &mut String, paragraph: &mut Vec<String>) {
+    if paragraph.is_empty() {
+        return;
+    }
+    html.push_str("<p>");
+    html.push_str(&escape_html(&paragraph.join(" ")));
+    html.push_str("</p>\n");
+    paragraph.clear();
+}
+
+fn escape_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn clean_yaml_value(value: &str) -> String {
@@ -1247,28 +1749,59 @@ fn backup_article(article_path: &Path) -> Result<(), String> {
     if !article_path.exists() {
         return Ok(());
     }
-    let Some(parent) = article_path.parent() else {
-        return Ok(());
-    };
-    let backup_dir = parent.join(".reader-backups");
+    let backup_dir = article_backup_dir(article_path)?;
     fs::create_dir_all(&backup_dir).map_err(to_err)?;
-    let stem = article_path
+    let stem = article_backup_stem(article_path);
+    let extension = article_backup_extension(article_path);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(to_err)?
+        .as_millis();
+    let backup = backup_dir.join(format!("{stem}-{timestamp}.{extension}"));
+    fs::copy(article_path, backup).map_err(to_err)?;
+    Ok(())
+}
+
+fn article_backup_dir(article_path: &Path) -> Result<PathBuf, String> {
+    let parent = article_path
+        .parent()
+        .ok_or_else(|| "无法识别文章目录".to_string())?;
+    Ok(parent.join(".reader-backups"))
+}
+
+fn article_backup_stem(article_path: &Path) -> String {
+    article_path
         .file_stem()
         .and_then(|name| name.to_str())
         .map(sanitize_asset_segment)
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "document".to_string());
-    let extension = article_path
+        .unwrap_or_else(|| "document".to_string())
+}
+
+fn article_backup_extension(article_path: &Path) -> String {
+    article_path
         .extension()
         .and_then(|ext| ext.to_str())
-        .unwrap_or("md");
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(to_err)?
-        .as_secs();
-    let backup = backup_dir.join(format!("{stem}-{timestamp}.{extension}"));
-    fs::copy(article_path, backup).map_err(to_err)?;
-    Ok(())
+        .unwrap_or("md")
+        .to_string()
+}
+
+fn scoped_article_history_path(article_path: &Path, history_path: &str) -> Result<PathBuf, String> {
+    let backup_dir = fs::canonicalize(article_backup_dir(article_path)?).map_err(to_err)?;
+    ensure_path_in_registered_workspace(&backup_dir)?;
+    let history = fs::canonicalize(PathBuf::from(history_path)).map_err(to_err)?;
+    if !history.is_file() || !history.starts_with(&backup_dir) {
+        return Err("历史版本路径不在当前文档备份目录内。".to_string());
+    }
+    let Some(file_name) = history.file_name().and_then(|name| name.to_str()) else {
+        return Err("无法识别历史版本文件名。".to_string());
+    };
+    let prefix = format!("{}-", article_backup_stem(article_path));
+    let suffix = format!(".{}", article_backup_extension(article_path));
+    if !file_name.starts_with(&prefix) || !file_name.ends_with(&suffix) {
+        return Err("历史版本与当前文档不匹配。".to_string());
+    }
+    Ok(history)
 }
 
 fn reader_state_path() -> Result<PathBuf, String> {
@@ -1298,6 +1831,31 @@ fn scoped_markdown_path(path: &str) -> Result<PathBuf, String> {
         return Err("请先打开一个 Markdown 文件。".to_string());
     }
     Ok(article_path)
+}
+
+fn cli_markdown_path(path: &str) -> Result<PathBuf, String> {
+    let article_path = fs::canonicalize(PathBuf::from(path)).map_err(to_err)?;
+    if !article_path.is_file() || !is_markdown_file(&article_path) {
+        return Err("请选择有效的 Markdown 文件。".to_string());
+    }
+    Ok(article_path)
+}
+
+fn cli_article_history_path(article_path: &Path, history_path: &str) -> Result<PathBuf, String> {
+    let backup_dir = fs::canonicalize(article_backup_dir(article_path)?).map_err(to_err)?;
+    let history = fs::canonicalize(PathBuf::from(history_path)).map_err(to_err)?;
+    if !history.is_file() || !history.starts_with(&backup_dir) {
+        return Err("历史文件不属于当前文章。".to_string());
+    }
+    let Some(file_name) = history.file_name().and_then(|name| name.to_str()) else {
+        return Err("无法识别历史文件名。".to_string());
+    };
+    let prefix = format!("{}-", article_backup_stem(article_path));
+    let suffix = format!(".{}", article_backup_extension(article_path));
+    if !file_name.starts_with(&prefix) || !file_name.ends_with(&suffix) {
+        return Err("历史文件不属于当前文章。".to_string());
+    }
+    Ok(history)
 }
 
 fn resolve_import_workspace(workspace: &str, pdf_path: &Path) -> Result<PathBuf, String> {
@@ -1390,24 +1948,32 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 fn trim_reader_state(state: &mut ReaderState) {
+    if state.settings.default_read_mode == "source" {
+        state.settings.default_read_mode = "edit".to_string();
+    }
     if !matches!(
         state.settings.default_read_mode.as_str(),
-        "desktop" | "source" | "edit"
+        "desktop" | "edit"
     ) {
         state.settings.default_read_mode = "desktop".to_string();
     }
-    if !matches!(state.last_read_mode.as_str(), "desktop" | "source" | "edit") {
+    if state.last_read_mode == "source" {
+        state.last_read_mode = "edit".to_string();
+    }
+    if !matches!(state.last_read_mode.as_str(), "desktop" | "edit") {
         state.last_read_mode = state.settings.default_read_mode.clone();
     }
     dedupe_trim(&mut state.recent_workspaces, 20);
     dedupe_trim(&mut state.recent_files, 50);
     dedupe_trim(&mut state.favorites, 500);
     dedupe_trim(&mut state.pinned, 500);
+    dedupe_trim(&mut state.locked, 500);
     let known_files: HashSet<String> = state
         .recent_files
         .iter()
         .chain(state.favorites.iter())
         .chain(state.pinned.iter())
+        .chain(state.locked.iter())
         .cloned()
         .collect();
     state
@@ -2910,6 +3476,66 @@ mod tests {
         })
         .expect("save article");
         assert!(payload.content.contains("新正文"));
+    }
+
+    #[test]
+    fn restores_history_and_backs_up_current_content() {
+        let root = std::env::temp_dir().join(format!(
+            "tauri-reader-history-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create history root");
+        let article_path = root.join("note.md");
+        fs::write(&article_path, "---\ntitle: 历史\n---\n\n旧版本").expect("write note");
+        scan_workspace(root.to_string_lossy().to_string()).expect("register root");
+
+        save_article(SaveArticleRequest {
+            path: article_path.to_string_lossy().to_string(),
+            content: "---\ntitle: 历史\n---\n\n当前版本".to_string(),
+        })
+        .expect("save current");
+
+        let first_history = list_article_history(ArticleHistoryRequest {
+            article_path: article_path.to_string_lossy().to_string(),
+        })
+        .expect("list history")
+        .into_iter()
+        .find(|item| {
+            read_article_history(RestoreArticleHistoryRequest {
+                article_path: article_path.to_string_lossy().to_string(),
+                history_path: item.path.clone(),
+            })
+            .map(|content| content.contains("旧版本"))
+            .unwrap_or(false)
+        })
+        .expect("old version backup");
+
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let restored = restore_article_history(RestoreArticleHistoryRequest {
+            article_path: article_path.to_string_lossy().to_string(),
+            history_path: first_history.path,
+        })
+        .expect("restore old version");
+
+        assert!(restored.content.contains("旧版本"));
+        let history_after_restore = list_article_history(ArticleHistoryRequest {
+            article_path: article_path.to_string_lossy().to_string(),
+        })
+        .expect("list history after restore");
+        assert!(
+            history_after_restore.iter().any(|item| {
+                read_article_history(RestoreArticleHistoryRequest {
+                    article_path: article_path.to_string_lossy().to_string(),
+                    history_path: item.path.clone(),
+                })
+                .map(|content| content.contains("当前版本"))
+                .unwrap_or(false)
+            }),
+            "restore should back up the current content before overwriting"
+        );
     }
 
     #[test]

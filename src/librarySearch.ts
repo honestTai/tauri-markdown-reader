@@ -51,6 +51,17 @@ title: Markdown Reader V2 示例
 digest: 本地阅读、全文搜索、收藏和导出放进同一个资料浏览工作台。
 ---
 
+## 一眼看懂
+
+Markdown Reader V2 是一个本地 Markdown 阅读、搜索和轻编辑工具。它更适合管理项目 README、PRD、排障记录、技术方案和公众号草稿，而不是替代重型 IDE。
+
+建议先试这 4 个动作：
+
+- [x] 点击左侧浮动按钮，打开文档库。
+- [x] 用快速打开搜索 \`公式\`、\`Mermaid\` 或 \`导出\`。
+- [x] 进入专注模式，左边写 Markdown，右边实时预览。
+- [x] 在编辑器里打开语法下拉，插入公式、表格、代码块或 Mermaid。
+
 ## 阅读器定位
 
 Markdown Reader V2 面向本地文档、项目 README、PRD、排障记录和技术方案。它优先解决快速回到上次工作区、搜索正文内容、沿着大纲阅读长文和轻量修改的问题。
@@ -59,18 +70,69 @@ Markdown Reader V2 面向本地文档、项目 README、PRD、排障记录和技
 
 搜索 SQL、Tauri、产品方案这类关键词时，结果不只看文件名，也会读取 Markdown 正文、frontmatter 和标题，并展示命中片段。
 
-## 图片和代码
+## 图片、表格和代码
 
 ![系统预览](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lwSxQgAAAABJRU5ErkJggg==)
+
+| 能力 | 说明 | 状态 |
+| --- | --- | --- |
+| 目录扫描 | 递归读取常见文档目录 | 已支持 |
+| 全文搜索 | 文件名、标题、frontmatter、正文片段 | 已支持 |
+| 导入导出 | PDF / DOCX 草稿，Word / PDF / HTML 导出 | 已支持 |
 
 \`\`\`ts
 const result = await searchWorkspace('SQL')
 await openDocument(result.path)
 \`\`\`
 
-## 轻编辑
+## 公式和图表
 
-编辑模式保留 Markdown 源码、保存快捷键、保存前备份和本地图片插入。阅读器的主心智仍然是看文档，不把编辑器做重。
+行内公式示例：$score = titleHit * 4 + fileHit * 3 + bodyHit$。
+
+$$
+readingMinutes = \\lceil words / 450 \\rceil
+$$
+
+\`\`\`mermaid
+flowchart LR
+  A[打开工作区] --> B[扫描 Markdown]
+  B --> C[全文搜索]
+  C --> D[阅读 / 导出]
+\`\`\`
+
+> [!NOTE]
+> 这个示例用来验证代码高亮、KaTeX 公式、Mermaid 图表、GFM 表格和 GitHub 风格 callout。
+
+## 语法模板
+
+编辑器里的语法下拉可以直接插入常用 Markdown 片段：
+
+| 模板 | 用途 |
+| --- | --- |
+| 行内公式 / 块公式 | 写技术笔记、算法说明、评分公式 |
+| 表格 / 任务列表 | 做方案对比、检查清单 |
+| Mermaid 图表 | 写流程图、架构流转 |
+| Callout / Details | 标注提醒或折叠长说明 |
+| Frontmatter / 图片语法 | 补标题摘要或插图占位 |
+
+<details>
+<summary>折叠块示例</summary>
+
+这里适合放补充说明、长日志、命令输出或临时排查记录。
+
+</details>
+
+脚注示例：历史版本会保存每次保存前的内容[^history]。
+
+[^history]: 恢复历史版本前，应用会先备份当前内容，再覆盖当前文件。
+
+## 轻编辑和历史版本
+
+编辑模式保留 Markdown 源码、保存快捷键、保存前备份和本地图片插入。修改历史是当前文件的版本历史，不是最近打开记录；恢复某个版本前会先保存当前内容，避免误覆盖。
+
+## 导出检查
+
+右侧操作面板可以复制 Markdown、纯文本、阅读 HTML，也可以导出 Word、PDF 和阅读 HTML。浏览器 Demo 里会走下载或复制提示，桌面应用里会保存到本地。
 `,
   preview_content: '',
 }

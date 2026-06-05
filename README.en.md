@@ -14,12 +14,18 @@ Markdown Reader is not a cloud note app or a heavy IDE. It is a desktop document
 
 ![Markdown Reader running demo](docs/assets/markdown-reader-demo.gif)
 
-## V3 Highlights
+## V3.5 Highlights
 
 - Open a folder or one Markdown file and recursively scan common document directories.
 - Search filenames, headings, frontmatter, and body snippets.
 - Quick open, recent files, favorites, pinned docs, and per-document scroll memory.
-- Read, source, and edit views with save-before backup.
+- Fixed row action icons for favorites, pinned docs, and related library controls when they were invisible in some environments.
+- Added document locking so a file can stay readable while save, image insertion, and history restore are blocked.
+- Added an edit history panel for previewing and restoring pre-save backups.
+- Two primary views: Read and Edit. Edit is the Markdown source view and saves create pre-save backups.
+- Editor selection shortcuts quickly insert bold text, links, math, tables, code blocks, and Mermaid diagrams.
+- Technical document rendering: syntax highlighting, code copy, KaTeX math, Mermaid diagrams, GFM tables, and GitHub-style callouts.
+- The help window includes a built-in Markdown guide that opens directly in the reader.
 - Local image insertion, pasted screenshots, dropped images, and missing-image checks.
 - PDF to Markdown draft conversion for selectable-text PDFs.
 - DOCX to Markdown draft conversion with headings, lists, tables, and images where possible.
@@ -46,6 +52,8 @@ V3 no longer keeps an embedded terminal. The real terminal path was not reliable
 - Read project README files, PRDs, technical plans, and changelogs without opening an IDE.
 - Search meeting notes, troubleshooting records, retrospectives, and delivery folders.
 - Turn a local Markdown knowledge base into a searchable, pinnable, exportable library.
+- Read technical docs with code, math, tables, and Mermaid diagrams.
+- Quickly structure Markdown with shortcuts for math, tables, code blocks, task lists, and diagrams.
 - Convert PDF or DOCX files into Markdown drafts before editing.
 - Deliver Markdown content as Word, PDF, or reading HTML.
 - Let Codex, Claude Code, and other tools read, convert, and search local docs through the CLI.
@@ -69,13 +77,21 @@ The GUI installer also ships the `md-reader` CLI (`md-reader.exe` on Windows). Y
 
 ```bash
 cargo build --manifest-path src-tauri/Cargo.toml --release --bin md-reader
+src-tauri/target/release/md-reader list ./docs --json
+src-tauri/target/release/md-reader import input.docx --to md --out ./output --json
 src-tauri/target/release/md-reader convert input.docx --to md --out ./output --json
+src-tauri/target/release/md-reader export ./docs/example.md --to html --out ./exports --json
+src-tauri/target/release/md-reader export ./docs/example.md --to txt --out ./exports --json
 src-tauri/target/release/md-reader inspect input.pdf --json
 src-tauri/target/release/md-reader search ./docs --query "keyword" --json
 src-tauri/target/release/md-reader read ./docs/example.md --json
+src-tauri/target/release/md-reader save ./docs/example.md --in ./draft.md --json
+src-tauri/target/release/md-reader history ./docs/example.md --json
+src-tauri/target/release/md-reader history-read ./docs/example.md --history ./docs/.reader-backups/example-xxx.md --json
+src-tauri/target/release/md-reader restore ./docs/example.md --history ./docs/.reader-backups/example-xxx.md --json
 ```
 
-DOCX conversion writes images to a Markdown-matching `.assets` folder, which keeps the result editable and useful for local agent workflows.
+DOCX conversion writes images to a Markdown-matching `.assets` folder, which keeps the result editable and useful for local agent workflows. CLI export supports `md`, `txt`, and `html`; rich Word/PDF export remains in the GUI. `save`, `history`, and `restore` reuse the GUI pre-save versions, and write/restore backs up current content first.
 
 ## Local Development
 
@@ -97,8 +113,8 @@ Local Windows builds require Rust/Cargo and Microsoft C++ Build Tools. Local mac
 Push a `v*` tag to create a GitHub Release:
 
 ```bash
-git tag v0.3.0
-git push origin main v0.3.0
+git tag v3.5
+git push origin main v3.5
 ```
 
 The workflow builds Windows installers plus macOS Apple Silicon / M-series `.app` archives and uploads them to the matching Release. Current Windows local bundles are also uploaded manually as release assets.

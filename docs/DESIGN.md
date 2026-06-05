@@ -6,7 +6,7 @@ The V2 interface keeps the three-column workbench but changes the product center
 
 - Top bar: workspace picker, library/panel toggles, focus mode, open folder, open file, quick open, refresh, back to top, save.
 - Left library: search, filters, sorting, pinned documents, favorites, recent documents, and relative paths.
-- Center reader: reading, source, and edit modes.
+- Center reader: reading and edit modes. Edit is the Markdown source view.
 - Right panel: outline, document statistics, image status, copy/export actions, and settings.
 
 ## Interaction
