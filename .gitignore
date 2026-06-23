@@ -48,3 +48,5 @@ src-tauri/NSIS/
 # Local data (dev runtime)
 .flowmark/
 output/
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo
