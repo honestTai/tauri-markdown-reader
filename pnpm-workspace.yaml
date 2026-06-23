@@ -1,0 +1,5 @@
+packages:
+  # 根目录前端
+  - "."
+  # Node sidecar（LangChain Agent）
+  - "src-sidecar"

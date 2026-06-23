@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+dist-ssr/
+*.local
+
+# Tauri build
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/flowmark-agent.cjs
+
+# Sidecar build output
+src-sidecar/dist/
+
+# IDE
+.idea/
+.vscode/
+.fleet/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+.preview-*
+.tauri-dev-*
+tmp-preview-*
+demo-vite.*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Tauri CLI
+src-tauri/WixTools/
+src-tauri/NSIS/
+
+# Local data (dev runtime)
+.flowmark/
+output/

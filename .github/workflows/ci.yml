@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, flowmark/windows-rewrite]
+  pull_request:
+    branches: [flowmark/windows-rewrite]
+
+jobs:
+  # Windows 主矩阵 - 阶段 1 仅做编译验证
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 安装前端依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建 sidecar
+        run: pnpm build:sidecar
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 前端单测
+        run: pnpm test
+
+      - name: Cargo 检查
+        working-directory: src-tauri
+        run: cargo check

@@ -1,0 +1,43 @@
+[package]
+name = "flowmark-windows"
+version = "1.0.0"
+description = "FlowMark Windows 桌面版"
+authors = ["honest.tai"]
+edition = "2021"
+rust-version = "1.77"
+
+# lib 名加 _lib 后缀避免在 Windows 上与 bin 名冲突
+# 见 https://github.com/rust-lang/cargo/issues/8519
+[lib]
+name = "flowmark_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 异步运行时（sidecar 通信、命令处理）
+tokio = { version = "1", features = ["full"] }
+# 日志
+log = "0.4"
+# 错误类型派生
+thiserror = "1"
+# 日志后端（阶段 1 用，后续可换 tracing-subscriber）
+env_logger = "0.11"
+# 后续阶段用到：rusqlite / keyring / sha2 / anyhow
+# 阶段 1 暂不引入，保持依赖最小
+
+[features]
+# 自定义 feature，用于在 dev 模式下跳过打包版 sidecar
+default = []
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

@@ -1,0 +1,26 @@
+{
+  "name": "flowmark-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlowMark Node sidecar - LangChain Agent 运行时",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "build": "node ../scripts/build-sidecar.cjs",
+    "dev": "tsx watch server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "langchain": "^0.3.0",
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}
