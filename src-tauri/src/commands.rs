@@ -23,6 +23,8 @@ use crate::store::{
     OperationHistoryRepository, SessionRepository,
 };
 use crate::store::{AppError, AppResult};
+use crate::index::{IndexRepository, IndexStats, SearchHit};
+use std::sync::Mutex;
 
 // ============ 辅助：从 State 获取 repository ============
 
@@ -195,6 +197,134 @@ pub fn clear_longform_memory(
     document_id: String,
 ) -> AppResult<()> {
     memory_repo(&state).clear(&document_id)
+}
+
+// ============ Index 命令（阶段 3） ============
+
+/// 构建或刷新一个文档的索引
+///
+/// 调用方（前端或 sidecar）传入文档 id、标题（可选）、正文内容，
+/// 命令层负责打开索引库、写库。返回是否实际重新分块。
+#[tauri::command]
+pub fn build_index(
+    state: tauri::State<AppState>,
+    document_id: String,
+    title: Option<String>,
+    content: String,
+    updated_at: i64,
+) -> AppResult<bool> {
+    let repo = IndexRepository::open(&state.paths)?;
+    repo.upsert_document(&document_id, title.as_deref(), &content, updated_at)
+}
+
+/// 批量构建索引（前端扫描工作区后调用）
+#[tauri::command]
+pub fn build_index_batch(
+    state: tauri::State<AppState>,
+    items: Vec<IndexBuildItem>,
+) -> AppResult<IndexBuildBatchResult> {
+    let repo = IndexRepository::open(&state.paths)?;
+    let mut rebuilt = 0usize;
+    let mut skipped = 0usize;
+    let mut errors: Vec<String> = Vec::new();
+    for item in items {
+        match repo.upsert_document(
+            &item.document_id,
+            item.title.as_deref(),
+            &item.content,
+            item.updated_at,
+        ) {
+            Ok(true) => rebuilt += 1,
+            Ok(false) => skipped += 1,
+            Err(e) => errors.push(format!("{}: {e}", item.document_id)),
+        }
+    }
+    Ok(IndexBuildBatchResult {
+        rebuilt,
+        skipped,
+        errors,
+    })
+}
+
+/// 单个构建项
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexBuildItem {
+    pub document_id: String,
+    pub title: Option<String>,
+    pub content: String,
+    pub updated_at: i64,
+}
+
+/// 批量构建结果
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexBuildBatchResult {
+    pub rebuilt: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+}
+
+/// 跨文档分块检索
+#[tauri::command]
+pub fn search_index(
+    state: tauri::State<AppState>,
+    query: String,
+    limit: Option<usize>,
+) -> AppResult<Vec<SearchHit>> {
+    let repo = IndexRepository::open(&state.paths)?;
+    repo.search(&query, limit.unwrap_or(50))
+}
+
+/// 读单个分块全文
+#[tauri::command]
+pub fn read_index_chunk(
+    state: tauri::State<AppState>,
+    chunk_id: String,
+) -> AppResult<Option<String>> {
+    let repo = IndexRepository::open(&state.paths)?;
+    let chunk = repo.read_chunk(&chunk_id)?;
+    Ok(chunk.map(|c| {
+        let mut s = String::new();
+        if let Some(h) = c.heading {
+            s.push_str(&format!("# {h}\n\n"));
+        }
+        s.push_str(&c.text);
+        s
+    }))
+}
+
+/// 文档索引统计
+#[tauri::command]
+pub fn index_stats(
+    state: tauri::State<AppState>,
+    document_id: String,
+) -> AppResult<Option<IndexStats>> {
+    let repo = IndexRepository::open(&state.paths)?;
+    repo.stats(&document_id)
+}
+
+/// 列出所有已索引文档 id
+#[tauri::command]
+pub fn list_indexed_documents(state: tauri::State<AppState>) -> AppResult<Vec<String>> {
+    let repo = IndexRepository::open(&state.paths)?;
+    repo.list_documents()
+}
+
+/// 删除一个文档的索引
+#[tauri::command]
+pub fn delete_indexed_document(
+    state: tauri::State<AppState>,
+    document_id: String,
+) -> AppResult<()> {
+    let repo = IndexRepository::open(&state.paths)?;
+    repo.delete_document(&document_id)
+}
+
+// 让 AppError 抑制未使用警告（阶段 4 会用 AppError 直接）
+#[allow(dead_code)]
+fn _suppress_unused_mutex() -> Mutex<()> {
+    Mutex::new(())
 }
 
 // ============ AppState 定义 ============

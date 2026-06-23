@@ -34,12 +34,13 @@ dirs-next = "2"
 keyring = "3"
 # 临时目录（测试用）
 tempfile = "3"
+# SHA-256 内容指纹（阶段 3 索引用）
+sha2 = "0.10"
+# SQLite 索引存储（阶段 3）
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"
-
-# 后续阶段用到：rusqlite / sha2 / anyhow
-# 阶段 2 暂不引入，保持依赖最小
 
 [features]
 # 自定义 feature，用于在 dev 模式下跳过打包版 sidecar

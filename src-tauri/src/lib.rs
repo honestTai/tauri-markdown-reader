@@ -6,6 +6,7 @@
 //! 阶段 2：数据模型 + 持久化层命令
 
 mod commands;
+mod index;
 mod models;
 mod sidecar;
 mod store;
@@ -132,7 +133,15 @@ pub fn run() {
             // 阶段 2：longform memory
             commands::load_longform_memory,
             commands::append_longform_memory,
-            commands::clear_longform_memory
+            commands::clear_longform_memory,
+            // 阶段 3：index
+            commands::build_index,
+            commands::build_index_batch,
+            commands::search_index,
+            commands::read_index_chunk,
+            commands::index_stats,
+            commands::list_indexed_documents,
+            commands::delete_indexed_document
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");
