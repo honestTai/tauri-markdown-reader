@@ -6,31 +6,32 @@
  *   - 工具只读 + 提议草稿（绝不直接写文件）
  *   - 每步工具调用 → tool_call 事件 → 工具结果 → tool_result 事件
  *
- * 与 iOS 的差异：iOS 手撸 tool-call 循环，Windows 侧用 LangChain
- * AgentExecutor 自动处理。但为了让"取消"和"事件流"可控，
- * 这里仍手动驱动循环，不直接用 AgentExecutor 的 invoke()。
- *
- * 阶段 4 的简化策略：
+ * 阶段 4 Part 2：真正接入 LangChain bindTools 的流式 tool-call 循环。
  *   1. 路由 → 选系统提示词
- *   2. 调 gateway.stream() 流式生成首答
- *   3. 首答中若模型显式给出工具调用意图（标记语法），触发一次工具调用
- *   4. 工具结果作为 system 反馈，再走一轮 stream
- *   5. 最多 6 轮，超出停止
+ *   2. gateway.streamWithTools() 流式生成
+ *      - 文本 delta → emit delta
+ *      - 模型产出 tool_calls → emit tool_call → 通过 ToolBackend 反向调 Rust → emit tool_result
+ *      - 把工具结果作为 tool 消息塞回下一轮
+ *   3. 若 finishReason === "tool_calls"，进入下一轮（最多 MAX_STEPS）
+ *   4. done 时 emit done（含最终文本 + sources）
  *
- * 真正的 LangChain tool-call 集成留给阶段 4 后续 PR（需要 LLM 支持
- * function calling 且 @langchain/openai 的 bindTools 流式稳定）。
- * 这里先保证：路由 → preview/remote 流式 → 事件流转发 这条主干可用。
+ * Preview 模式下 gateway 不产出 tool_calls，直接走一轮就 done，
+ * 事件流契约与 Part 1 完全一致。
  */
 
-import type { Gateway, GatewayEvent } from "./gateway.js";
+import type { ToolAwareGateway, GatewayChunkEvent } from "./gateway.js";
 import type {
   AgentEvent,
   AgentProfile,
   AgentRunParams,
   AgentSource,
   AgentSkill,
+  ToolBackend,
 } from "./types.js";
 import { route } from "./router.js";
+import { createAgentTools } from "./tools.js";
+import type { AIMessageChunk } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /** 最多工具循环步数（对齐 iOS maxSteps = 6） */
 export const MAX_STEPS = 6;
@@ -64,13 +65,21 @@ const SKILL_PROMPTS: Partial<Record<AgentSkill, string>> = {
 /** 运行时单个 run 的上下文 */
 export interface RunContext {
   params: AgentRunParams;
-  gateway: Gateway;
+  gateway: ToolAwareGateway;
   /** 事件回调（每条 AgentEvent 透传给 Rust） */
   emit: (ev: AgentEvent) => void;
   /** 取消信号 */
   signal: AbortSignal;
-  /** 工具调用钩子（侧车→Rust 反向 RPC，阶段 4 后续 PR 接入） */
-  callTool?: (name: string, args: unknown) => Promise<unknown>;
+  /** 工具后端（sidecar→Rust 反向 RPC） */
+  backend: ToolBackend;
+}
+
+/** 对话历史中的单条消息（runtime 内部表示） */
+interface LoopMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  tool_call_id?: string;
+  tool_calls?: AIMessageChunk["tool_calls"];
 }
 
 /**
@@ -79,13 +88,17 @@ export interface RunContext {
  * 流程：
  *   1. 路由（route） → emit metadata
  *   2. 选 system prompt
- *   3. gateway.stream() → 逐 delta emit
- *   4. done 时 emit done（含 sources，目前空）
+ *   3. 循环（最多 MAX_STEPS）：
+ *      a. gateway.streamWithTools() → 逐 delta emit
+ *      b. 收到 tool_calls → emit tool_call → 调 backend → emit tool_result
+ *      c. 把 assistant + tool 结果塞回下一轮 messages
+ *      d. 若本轮无 tool_calls 或 finishReason !== "tool_calls"，跳出
+ *   4. done 时 emit done（含最终文本 + sources）
  *
  * 取消：signal.aborted 时立即停止迭代，不发 done。
  */
 export async function runAgent(ctx: RunContext): Promise<void> {
-  const { params, gateway, emit, signal } = ctx;
+  const { params, gateway, emit, signal, backend } = ctx;
   const profile = params.profile ?? "general";
 
   // 1. 路由
@@ -102,33 +115,138 @@ export async function runAgent(ctx: RunContext): Promise<void> {
   const sysBase = SYSTEM_PROMPTS[profile];
   const systemPrompt = skillExtra ? `${sysBase}\n\n${skillExtra}` : sysBase;
 
-  // 3. 流式
-  let fullText = "";
-  try {
-    for await (const ev of gateway.stream(r.text, systemPrompt, signal)) {
-      if (signal.aborted) return;
-      const ge = ev as GatewayEvent;
-      if (ge.type === "delta") {
-        fullText += ge.text;
-        emit({ type: "delta", runId: params.runId, text: ge.text });
-      } else if (ge.type === "error") {
-        emit({ type: "error", runId: params.runId, message: ge.message });
-        return;
+  // 3. 构造 tools + 初始消息
+  const tools: StructuredToolInterface[] = createAgentTools(backend);
+  const messages: LoopMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: r.text },
+  ];
+
+  let finalText = "";
+  const sources: AgentSource[] = [];
+
+  // 4. tool-call 循环
+  for (let step = 0; step < MAX_STEPS; step++) {
+    if (signal.aborted) return;
+
+    let stepText = "";
+    let stepToolCalls: Array<{ name: string; args: Record<string, unknown>; id?: string }> = [];
+    let finishReason: string | undefined;
+    let errored: string | null = null;
+
+    try {
+      for await (const ev of gateway.streamWithTools(messages, tools, signal)) {
+        if (signal.aborted) return;
+        const ge = ev as GatewayChunkEvent;
+        if (ge.type === "delta") {
+          stepText += ge.text;
+          emit({ type: "delta", runId: params.runId, text: ge.text });
+        } else if (ge.type === "tool_calls") {
+          stepToolCalls = ge.toolCalls;
+        } else if (ge.type === "done") {
+          finishReason = ge.finishReason;
+        } else if (ge.type === "error") {
+          errored = ge.message;
+        }
       }
-      // done 在循环外处理
+    } catch (e) {
+      errored = (e as Error).message ?? String(e);
     }
-  } catch (e) {
-    emit({
-      type: "error",
-      runId: params.runId,
-      message: (e as Error).message ?? String(e),
+
+    if (errored) {
+      emit({ type: "error", runId: params.runId, message: errored });
+      return;
+    }
+
+    // 累积本轮文本到最终输出（多轮 tool-call 循环的文本拼接）
+    if (stepText) {
+      finalText += stepText;
+    }
+
+    // 5. 没有工具调用 → 收尾
+    if (stepToolCalls.length === 0) {
+      break;
+    }
+
+    // 6. 把 assistant 消息（含 tool_calls）塞回历史
+    const assistantToolCalls: AIMessageChunk["tool_calls"] = stepToolCalls.map((tc, idx) => ({
+      name: tc.name,
+      args: tc.args,
+      id: tc.id ?? `call_${params.runId}_${step}_${idx}`,
+      type: "tool_call" as const,
+    }));
+    messages.push({
+      role: "assistant",
+      content: stepText,
+      tool_calls: assistantToolCalls,
     });
-    return;
+
+    // 7. 逐个执行工具，emit tool_call / tool_result，把结果作为 tool 消息塞回
+    for (let i = 0; i < stepToolCalls.length; i++) {
+      const tc = stepToolCalls[i];
+      const callId = assistantToolCalls[i]!.id!;
+
+      emit({
+        type: "tool_call",
+        runId: params.runId,
+        tool: tc.name,
+        args: tc.args,
+      });
+
+      let result: unknown;
+      try {
+        if (signal.aborted) return;
+        result = await backend.call(tc.name, tc.args);
+      } catch (e) {
+        result = { error: (e as Error).message ?? String(e) };
+      }
+
+      emit({
+        type: "tool_result",
+        runId: params.runId,
+        tool: tc.name,
+        result,
+      });
+
+      messages.push({
+        role: "tool",
+        content: typeof result === "string" ? result : JSON.stringify(result),
+        tool_call_id: callId,
+      });
+
+      // 从 document_search 结果里抽 sources（用于最终 done 事件）
+      if (tc.name === "document_search") {
+        collectSources(result, sources);
+      }
+    }
+
+    // finishReason 不是 tool_calls 说明模型已经不再要工具了，但保险起见继续循环
+    // （多数 OpenAI 兼容端点在 tool_calls 时返回 finishReason="tool_calls"）
+    if (finishReason && finishReason !== "tool_calls") {
+      break;
+    }
   }
 
   if (signal.aborted) return;
 
-  // 4. done
-  const sources: AgentSource[] = [];
-  emit({ type: "done", runId: params.runId, finalText: fullText, sources });
+  // 8. done
+  emit({ type: "done", runId: params.runId, finalText, sources });
+}
+
+/** 从 document_search 的结果里提取 sources（去重） */
+function collectSources(result: unknown, out: AgentSource[]): void {
+  if (!result || typeof result !== "object") return;
+  const hits = (result as { hits?: unknown[] }).hits;
+  if (!Array.isArray(hits)) return;
+  for (const h of hits) {
+    if (!h || typeof h !== "object") continue;
+    const hit = h as Record<string, unknown>;
+    out.push({
+      documentId: String(hit.documentId ?? ""),
+      chunkId: hit.chunkId ? String(hit.chunkId) : undefined,
+      heading: hit.heading ? String(hit.heading) : undefined,
+      snippet: String(hit.snippet ?? ""),
+      score: typeof hit.score === "number" ? hit.score : 0,
+    });
+  }
 }

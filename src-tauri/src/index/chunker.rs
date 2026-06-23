@@ -8,7 +8,7 @@
 //! 纯函数，无 I/O，便于单元测试。
 
 /// 单个分块
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Chunk {
     /// 所属标题（None 表示文档前言）
     pub heading: Option<String>,

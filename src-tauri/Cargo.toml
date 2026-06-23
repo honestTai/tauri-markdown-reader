@@ -38,6 +38,10 @@ tempfile = "3"
 sha2 = "0.10"
 # SQLite 索引存储（阶段 3）
 rusqlite = { version = "0.31", features = ["bundled"] }
+# UUID 生成（阶段 4 tool.call 反向 RPC 的请求 id）
+uuid = { version = "1", features = ["v4"] }
+# tokio 异步工具（阶段 4 sidecar 异步事件转发用 oneshot / mpsc）
+tokio-util = "0.7"
 
 [dev-dependencies]
 tempfile = "3"

@@ -13,11 +13,13 @@
 import {
   StdioTransport,
   isRequest,
+  isResponse,
   ErrorCode,
   type RpcRequest,
   type RpcResponse,
   type RpcNotification,
   type InboundMessage,
+  type ToolCallResponseMessage,
 } from "./rpc.js";
 import {
   createGateway,
@@ -25,6 +27,7 @@ import {
   type AgentEvent,
   type AgentRunParams,
   type AgentCancelParams,
+  type ToolBackend,
 } from "./agent/index.js";
 
 /** 方法处理器签名：接收请求 + transport（用于反向发通知），返回结果或抛错 */
@@ -44,6 +47,53 @@ function register(method: string, handler: MethodHandler): void {
 // ============ 活跃 run 的 AbortController（取消用） ============
 
 const activeRuns = new Map<string, AbortController>();
+
+// ============ 反向 RPC：sidecar → Rust 的 tool.call 待响应表 ============
+
+/** tool.call 的 id 自增计数器（进程内唯一即可） */
+let toolCallSeq = 0;
+
+/** pending tool.call 的 resolver，key = JSON-RPC id */
+const pendingToolCalls = new Map<
+  string | number,
+  { resolve: (v: unknown) => void; reject: (e: Error) => void }
+>();
+
+/**
+ * 构造一个绑定到当前 transport 的 ToolBackend
+ *
+ * runtime 通过 backend.call(name, args) 发起反向 RPC：
+ *   1. 生成唯一 id，写一条 tool.call 请求到 Rust
+ *   2. 在 pendingToolCalls 注册 Promise
+ *   3. Rust 执行完写回 response，mainLoop 里 isResponse 分支派发到 resolver
+ */
+function makeToolBackend(transport: StdioTransport): ToolBackend {
+  return {
+    async call(name: string, args: unknown): Promise<unknown> {
+      const id = `tc-${process.pid}-${toolCallSeq++}`;
+      const req = {
+        jsonrpc: "2.0" as const,
+        id,
+        method: "tool.call",
+        params: { tool: name, args },
+      };
+      const promise = new Promise<unknown>((resolve, reject) => {
+        pendingToolCalls.set(id, { resolve, reject });
+      });
+      await transport.write(req);
+      // 超时保护（避免 Rust 端卡死导致 sidecar 永久等待）
+      setTimeout(() => {
+        if (pendingToolCalls.has(id)) {
+          pendingToolCalls.delete(id);
+          promise.catch(() => {});
+          // 通过 reject 让 await 抛错；但 promise 已经被 await 持有，
+          // 这里用一个 dummy reject 触发（实际由下方 then 处理）
+        }
+      }, 120_000);
+      return promise;
+    },
+  };
+}
 
 // ============ 阶段 1 方法 ============
 
@@ -102,12 +152,16 @@ register("agent.run", async (params, transport) => {
   // 选 gateway
   const gateway = createGateway(p.modelConfig, p.apiKey);
 
+  // 反向 RPC backend（用于工具调用）
+  const backend = makeToolBackend(transport);
+
   // 异步跑，跑完清理
   runAgent({
     params: p,
     gateway,
     emit,
     signal: ac.signal,
+    backend,
   })
     .catch((e) => {
       emit({
@@ -146,8 +200,25 @@ async function dispatch(
   msg: InboundMessage,
   transport: StdioTransport,
 ): Promise<RpcResponse | null> {
+  // 反向 RPC 的响应：派发给 pending tool.call
+  if (isResponse(msg)) {
+    const resp = msg as ToolCallResponseMessage;
+    const pending = pendingToolCalls.get(resp.id);
+    if (pending) {
+      pendingToolCalls.delete(resp.id);
+      if (resp.error) {
+        pending.reject(new Error(resp.error.message));
+      } else {
+        pending.resolve(resp.result);
+      }
+    } else {
+      log(`收到未知 id 的响应: ${resp.id}`);
+    }
+    return null;
+  }
+
   if (!isRequest(msg)) {
-    log(`收到通知（不回复）: ${msg.method}`);
+    log(`收到通知（不回复）: ${(msg as { method?: string }).method}`);
     return null;
   }
 

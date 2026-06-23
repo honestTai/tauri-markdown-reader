@@ -4,6 +4,7 @@
 //!
 //! 阶段 1：sidecar 骨架
 //! 阶段 2：数据模型 + 持久化层命令
+//! 阶段 4 Part 2：agent.run / agent.cancel Tauri 命令 + sidecar 异步事件转发
 
 mod commands;
 mod index;
@@ -12,8 +13,8 @@ mod sidecar;
 mod store;
 
 use crate::commands::AppState;
-use sidecar::{SidecarError, SidecarHandle};
-use std::sync::Mutex;
+use sidecar::{SidecarError, SidecarHandle, ToolDispatcherRegistry};
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 /// 全局 sidecar 句柄
@@ -29,9 +30,19 @@ fn get_app_version() -> &'static str {
 
 /// 通过 Rust 转发一次 sidecar ping，验证 stdio JSON-RPC 链路
 #[tauri::command]
-fn sidecar_ping(state: tauri::State<SidecarState>) -> Result<String, String> {
-    let guard = state.0.lock().map_err(|e| format!("锁中毒: {e}"))?;
-    let handle = guard.as_ref().ok_or(SidecarError::NotRunning.to_string())?;
+async fn sidecar_ping(
+    sidecar_state: tauri::State<'_, SidecarState>,
+) -> Result<String, String> {
+    let bus = {
+        let guard = sidecar_state
+            .0
+            .lock()
+            .map_err(|e| format!("锁中毒: {e}"))?;
+        guard
+            .as_ref()
+            .ok_or(SidecarError::NotRunning.to_string())?
+            .bus()
+    };
 
     let request = serde_json::json!({
         "jsonrpc": "2.0",
@@ -40,7 +51,7 @@ fn sidecar_ping(state: tauri::State<SidecarState>) -> Result<String, String> {
         "params": {}
     });
 
-    let resp = handle.request(&request).map_err(|e| e.to_string())?;
+    let resp = bus.request(&request).await.map_err(|e| e.to_string())?;
     Ok(resp.to_string())
 }
 
@@ -86,8 +97,16 @@ pub fn run() {
                     .to_string()
             };
 
-            match SidecarHandle::spawn(&script_path) {
+            match SidecarHandle::spawn(app.handle().clone(), &script_path) {
                 Ok(handle) => {
+                    // 注入反向 tool.call 派发器（持有 AppPaths 副本）
+                    let paths = app
+                        .state::<AppState>()
+                        .paths
+                        .clone();
+                    handle.bus().set_tool_dispatcher(Arc::new(
+                        ToolDispatcherRegistry::new(paths),
+                    ));
                     app.manage(SidecarState(Mutex::new(Some(handle))));
                     log::info!("sidecar 初始化完成");
                 }
@@ -141,7 +160,10 @@ pub fn run() {
             commands::read_index_chunk,
             commands::index_stats,
             commands::list_indexed_documents,
-            commands::delete_indexed_document
+            commands::delete_indexed_document,
+            // 阶段 4 Part 2：agent
+            commands::agent_run,
+            commands::agent_cancel
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

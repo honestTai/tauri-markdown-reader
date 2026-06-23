@@ -25,7 +25,6 @@ use crate::store::{
 use crate::store::{AppError, AppResult};
 use crate::index::{IndexRepository, IndexStats, SearchHit};
 use std::sync::Mutex;
-
 // ============ 辅助：从 State 获取 repository ============
 
 /// 获取 LibraryRepository（每次新建，内部无状态）
@@ -319,6 +318,224 @@ pub fn delete_indexed_document(
 ) -> AppResult<()> {
     let repo = IndexRepository::open(&state.paths)?;
     repo.delete_document(&document_id)
+}
+
+// ============ Agent 命令（阶段 4 Part 2） ============
+
+/// agent.run 参数（前端 → Rust → sidecar）
+///
+/// Rust 侧负责：
+///   1. 从 AppState 取 model config + API key，塞进 params
+///   2. 生成 runId（前端也可传）
+///   3. 转发到 sidecar，立即返回 accepted
+///   4. 后续 agent.event notification 通过 Tauri event `agent://event` 推到前端
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunArgs {
+    /// 前端可指定 runId（用于本地状态匹配）；不传则 Rust 生成
+    #[serde(default)]
+    pub run_id: Option<String>,
+    pub session_id: String,
+    pub input: String,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub forced_skill: Option<String>,
+    #[serde(default)]
+    pub document_id: Option<String>,
+}
+
+/// agent.run 返回
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunAccepted {
+    pub run_id: String,
+    pub accepted: bool,
+}
+
+/// 发起一次 Agent run
+///
+/// 流程：
+///   1. 从 AppState 读 model config + API key
+///   2. 构造 sidecar 的 agent.run 请求
+///   3. 通过 SidecarBus 写入 sidecar（不等响应，agent.run 立即返回 accepted）
+///   4. 后续 agent.event 通知由 stdout reader 线程转发到前端 Tauri event
+#[tauri::command]
+pub async fn agent_run(
+    state: tauri::State<'_, AppState>,
+    sidecar_state: tauri::State<'_, crate::sidecar::SidecarState>,
+    args: AgentRunArgs,
+) -> Result<AgentRunAccepted, String> {
+    // 1. 读 model config + api key
+    let mc_repo = ModelConfigRepository::new(state.paths.clone());
+    let config = mc_repo.load().map_err(|e| e.to_string())?;
+    let api_key = mc_repo.get_api_key().map_err(|e| e.to_string())?.unwrap_or_default();
+
+    // 2. 生成 / 复用 runId
+    let run_id = args.run_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    // 3. 取 sidecar bus
+    let bus = {
+        let guard = sidecar_state
+            .0
+            .lock()
+            .map_err(|_| "sidecar 状态锁中毒".to_string())?;
+        guard
+            .as_ref()
+            .ok_or("sidecar 未启动")?
+            .bus()
+    };
+
+    // 4. 构造 sidecar 请求
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": run_id,
+        "method": "agent.run",
+        "params": {
+            "runId": run_id,
+            "sessionId": args.session_id,
+            "input": args.input,
+            "profile": args.profile,
+            "forcedSkill": args.forced_skill,
+            "documentId": args.document_id,
+            "modelConfig": config,
+            "apiKey": api_key,
+        }
+    });
+
+    // 5. 发送（agent.run 立即返回 accepted；流式结果走 notification）
+    let resp = bus.request(&request).await.map_err(|e| e.to_string())?;
+
+    // 6. 检查 sidecar 是否 accepted
+    let accepted = resp
+        .get("result")
+        .and_then(|r| r.get("accepted"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    Ok(AgentRunAccepted { run_id, accepted })
+}
+
+/// agent.cancel 参数
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCancelArgs {
+    pub run_id: String,
+}
+
+/// 取消进行中的 Agent run
+#[tauri::command]
+pub async fn agent_cancel(
+    sidecar_state: tauri::State<'_, crate::sidecar::SidecarState>,
+    args: AgentCancelArgs,
+) -> Result<bool, String> {
+    let bus = {
+        let guard = sidecar_state
+            .0
+            .lock()
+            .map_err(|_| "sidecar 状态锁中毒".to_string())?;
+        guard.as_ref().ok_or("sidecar 未启动")?.bus()
+    };
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": format!("cancel-{}", args.run_id),
+        "method": "agent.cancel",
+        "params": { "runId": args.run_id }
+    });
+    let resp = bus.request(&request).await.map_err(|e| e.to_string())?;
+    let cancelled = resp
+        .get("result")
+        .and_then(|r| r.get("cancelled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    Ok(cancelled)
+}
+
+// ============ 反向 tool.call 派发（sidecar → Rust） ============
+
+/// 派发一次 tool.call 到本地实现
+///
+/// 由 SidecarBus 在 stdout reader 线程里调用，
+/// 根据 tool 名路由到对应的 Rust 仓储方法。
+pub fn dispatch_tool_call(
+    paths: &AppPaths,
+    tool: &str,
+    args: serde_json::Value,
+) -> AppResult<serde_json::Value> {
+    match tool {
+        "document_search" => {
+            let query = args
+                .get("query")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_search 缺少 query".into()))?
+                .to_string();
+            let limit = args
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .map(|n| n as usize)
+                .unwrap_or(10);
+            let repo = IndexRepository::open(paths)?;
+            let hits = repo.search(&query, limit)?;
+            Ok(serde_json::json!({ "hits": hits }))
+        }
+        "document_read" => {
+            let chunk_id = args
+                .get("chunkId")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_read 缺少 chunkId".into()))?
+                .to_string();
+            let repo = IndexRepository::open(paths)?;
+            let chunk = repo.read_chunk(&chunk_id)?;
+            Ok(serde_json::json!({ "chunk": chunk }))
+        }
+        "document_index" => {
+            let document_id = args
+                .get("documentId")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_index 缺少 documentId".into()))?
+                .to_string();
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let content = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_index 缺少 content".into()))?
+                .to_string();
+            let updated_at = args
+                .get("updatedAt")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| AppError::InvalidArgument("document_index 缺少 updatedAt".into()))?;
+            let repo = IndexRepository::open(paths)?;
+            let rebuilt = repo.upsert_document(&document_id, title.as_deref(), &content, updated_at)?;
+            Ok(serde_json::json!({ "rebuilt": rebuilt }))
+        }
+        "document_propose_replace" => {
+            // 阶段 5 实现 resolve_agent_draft；这里先返回草稿占位
+            let document_id = args
+                .get("documentId")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_propose_replace 缺少 documentId".into()))?
+                .to_string();
+            let draft_id = uuid::Uuid::new_v4().to_string();
+            Ok(serde_json::json!({
+                "draftId": draft_id,
+                "documentId": document_id,
+                "mode": "searchReplace",
+                "note": "草稿已生成，阶段 5 接入 resolve_agent_draft 后支持 diff 预览"
+            }))
+        }
+        "document_propose_create" => {
+            let draft_id = uuid::Uuid::new_v4().to_string();
+            Ok(serde_json::json!({
+                "draftId": draft_id,
+                "mode": "create",
+                "note": "草稿已生成，阶段 5 接入 apply_agent_draft 后支持落盘"
+            }))
+        }
+        other => Err(AppError::InvalidArgument(format!("未知工具: {other}"))),
+    }
 }
 
 // 让 AppError 抑制未使用警告（阶段 4 会用 AppError 直接）

@@ -5,6 +5,7 @@
  *   - route / LAUNCH_SKILLS / stripSlashPrefix（路由）
  *   - createGateway / isPreviewMode / PreviewGateway / RemoteGateway（网关）
  *   - runAgent / MAX_STEPS（运行时）
+ *   - createAgentTools / TOOL_NAMES（工具）
  *   - 类型
  */
 
@@ -21,10 +22,12 @@ export {
   PreviewGateway,
   RemoteGateway,
 } from "./gateway.js";
-export type { Gateway, GatewayEvent } from "./gateway.js";
+export type { Gateway, GatewayEvent, ToolAwareGateway, GatewayChunkEvent } from "./gateway.js";
 
 export { runAgent, MAX_STEPS } from "./runtime.js";
 export type { RunContext } from "./runtime.js";
+
+export { createAgentTools, TOOL_NAMES } from "./tools.js";
 
 export type {
   AgentSkill,
@@ -37,5 +40,6 @@ export type {
   AgentEvent,
   AgentCancelParams,
   ToolCallRequest,
+  ToolBackend,
   ModelConfiguration,
 } from "./types.js";

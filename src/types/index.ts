@@ -125,3 +125,30 @@ export interface DocumentMemory {
   documentId: string;
   fragments: MemoryFragment[];
 }
+
+// ============ Agent 事件流（阶段 4 Part 2） ============
+
+/** Agent 事件（Rust 通过 Tauri event `agent://event` 推送） */
+export type AgentEvent =
+  | { type: "metadata"; runId: string; skill: AgentSkill; routedBy: AgentRoutedBy }
+  | { type: "delta"; runId: string; text: string }
+  | { type: "tool_call"; runId: string; tool: string; args: unknown }
+  | { type: "tool_result"; runId: string; tool: string; result: unknown }
+  | { type: "done"; runId: string; finalText: string; sources: AgentSource[] }
+  | { type: "error"; runId: string; message: string };
+
+/** agent_run 返回 */
+export interface AgentRunAccepted {
+  runId: string;
+  accepted: boolean;
+}
+
+/** agent_run 入参 */
+export interface AgentRunArgs {
+  runId?: string;
+  sessionId: string;
+  input: string;
+  profile?: string;
+  forcedSkill?: string;
+  documentId?: string;
+}

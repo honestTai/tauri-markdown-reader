@@ -120,3 +120,9 @@ export interface ToolCallRequest {
   tool: string;
   args: unknown;
 }
+
+/** 反向 RPC 句柄：sidecar 调用 Rust 侧工具 */
+export interface ToolBackend {
+  /** 发起一次 tool.call，阻塞直到 Rust 返回结果或错误 */
+  call(name: string, args: unknown): Promise<unknown>;
+}
