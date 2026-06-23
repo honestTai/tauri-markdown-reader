@@ -1,10 +1,10 @@
 # FlowMark Windows 版迁移计划
 
 > 源项目：`C:\Users\hones\Desktop\project\flowmark-ios`（SwiftUI，iOS + macOS，纯客户端单机）
-> 目标项目：`C:\Users\hones\Desktop\project\tauri-markdown-reader`（Tauri 2 + React 19 + Rust）
-> 目标分支：`flowmark/windows-rewrite`（已从最新 `main` 拉出，工作树干净）
-> 产物：Windows 优先的 FlowMark 桌面版，对齐 iOS/Mac 功能集，用 Tauri/Rust/React 重写实现
-> 生成日期：2026-06-23
+> 目标项目：`C:\Users\hones\Desktop\project\tauri-markdown-reader`（Tauri 2 + React 19 + Rust + Node Sidecar）
+> 目标分支：`flowmark/windows-rewrite`（已清空旧代码，仅保留本文档作为规格）
+> 产物：**Windows-only** 的 FlowMark 桌面版，对齐 iOS/Mac 功能集，从零重写
+> 生成日期：2026-06-23（v2：全量重写 + LangChain Agent + Windows-only）
 
 ---
 
@@ -20,30 +20,29 @@
 - 所有文档内容、Agent 会话历史、本地索引、操作历史都只留在设备本地
 - 唯一对外网络：用户自己在 Settings 里配置的 OpenAI 兼容 chat completions 端点
 
-### 目标项目（tauri-markdown-reader）现状
+### 目标项目现状（v2：已清空）
 
-Tauri 2 + React 19 + Vite + TypeScript，Rust 后端（`src-tauri/src/main.rs` 约 10k 行，41 个 `#[tauri::command]`）。已有：
+- `flowmark/windows-rewrite` 分支已 force push，工作区**完全清空**，仅保留本迁移文档
+- 旧 Tauri/Rust/React 代码已全部删除，**不从 git 历史捞回任何旧文件作参考**
+- 本地 `.git` 历史与远程 `main`（9ac8277）作为回滚点保留，但**新代码不从那里抄**
+- 所有 Tauri 骨架、CI、`agent_router.rs`、CSP、Windows 签名配置一律**从零重写**
 
-- 工作区扫描、全文搜索、阅读/编辑
-- PDF/DOCX 导入、编辑历史、收藏/置顶/锁定
-- Word/PDF/HTML 导出
-- `agent_router.rs`（与 iOS 同构）、`run_ai_workflow` 流式、AI 记忆/会话/技能
-- HTML artifact 保存、`md-reader` CLI sidecar
-- `productName` 已是 `FlowMark`，bundle id `local.markdown.reader`
-- 当前平台：Windows + macOS（`bundle.targets: "all"`）
+### 迁移定位（关键决策，v2 更新）
 
-### 迁移定位（关键决策）
-
-用户明确："目标项目的代码都不要了"+"迁移成 windows，新版本的 windows"。
+用户明确："现在的代码全部不要了"+"全部重新写"+"Agent 部分用 LangChain"+"Windows 只做 Windows"。
 
 理解为：
 
-- **新分支从 main 起步，旧代码不直接沿用**（原 `codex/private-agent-workflow` 分支的 WIP 已 `git stash` 保留为 `wip-before-flowmark-windows-rewrite`，不会丢）
-- 但 main 上已有的 Tauri/Rust/React 骨架（窗口、CSP、命令注册、CLI sidecar 打包、CI）是 Windows 桌面落地的基础设施，**没必要推倒**——推倒会丢失 Windows 打包/签名/WebView2 这些已经趟过坑的部分
-- **真正要迁的是 FlowMark iOS/Mac 的产品形态**：Agent skill 体系、本地索引、长文档记忆、操作历史、Mac 写回流程、模型配置 UI、7 语言本地化、PlantUML 渲染、纯客户端定位（用户自配 OpenAI 兼容端点）
-- 目标产物：**Windows 优先（可兼 macOS）的 FlowMark 桌面版**，对齐 iOS/Mac 的功能集，但用 Tauri/Rust/React 重写实现
-
-> 如果要"完全清空 main 代码、从零写"，需要用户额外确认；本计划按**保留 Tauri 骨架 + 重写业务层**来规划，性价比最高、风险最低。
+- **从一张白纸按本文档重写**，不沿用任何旧实现（避免旧代码误导/幻觉）
+- **Agent 部分用 LangChain（`langchain.js`）实现**，跑在 Node sidecar 进程里
+  - 理由：Mac/iOS 没有成熟的 LangChain 生态所以手撸 `RemoteLLMGateway` + `ClientAgentRuntime`；Windows 侧有 LangChain，省掉手撸 tool-call 循环最易出幻觉的部分
+  - 调研依据（GitHub 搜索 2026-06-23）：
+    - `langchain-ai/langchainjs` 17.8k★，TypeScript，官方维护，活跃（2026-06-23 仍有提交）
+    - Tauri + Node sidecar 模式有多个先例：`synle/tauri-desktop-node-sidecar-template`、`marti-1/tauri-sidecar-node-example`、`qQAQq-bot/Job-Sync`（26★，Tauri+Vue+Node sidecar Windows 桌面）
+    - sidecar 通信模式成熟：Tauri `tauri-plugin-shell` + `externalBin`，或 Rust `std::process::Command` + stdio JSON-RPC
+- **Windows-only**：`bundle.targets: ["msi", "nsis"]`，不配 macOS，砍掉所有 macOS 专属代码
+- **架构**：Tauri Rust（壳 + 文件系统 + 持久化 + 索引）+ Node Sidecar（LangChain Agent）+ React 19（UI）
+- **真正要迁的是 FlowMark iOS/Mac 的产品形态**：Agent skill 体系、本地索引、长文档记忆、操作历史、Mac 写回流程、模型配置 UI、7 语言本地化、PlantUML 渲染、纯客户端定位
 
 ---
 
@@ -68,15 +67,40 @@ Tauri 2 + React 19 + Vite + TypeScript，Rust 后端（`src-tauri/src/main.rs` �
 | PlantUML | `PlantUMLRenderURL` | zlib deflate + PlantUML 字母表编码成 plantuml.com png URL |
 | Share Extension | `FlowMarkShareExtension` | App Group 共享导入收件箱 |
 
-### 1.2 目标项目（tauri-markdown-reader）可复用部分
+### 1.2 目标项目架构（v2：从零重写）
 
-- Tauri 2 窗口/CSP/命令注册骨架
-- React 19 + Vite 前端
-- `agent_router.rs`（与 iOS 同构，需补全 skill case）
-- `rusqlite` 依赖（已存在，用于本地索引）
-- Word/PDF/HTML 导出链
-- `md-reader` CLI sidecar 打包
-- GitHub Actions CI
+三进程架构：
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Tauri 主进程（Rust，flowmark.exe）                       │
+│  - 窗口/CSP/命令注册                                      │
+│  - 文件系统（工作区扫描、读写、版本备份）                  │
+│  - 持久化（library.json / sessions.json / operation_history.json）
+│  - SQLite 索引（rusqlite）                                │
+│  - API key 存储（Windows Credential Manager via `keyring`）│
+│  - 启动/管理 Node sidecar（stdio JSON-RPC）               │
+└───────────────┬──────────────────────────┬──────────────┘
+                │ Tauri IPC (invoke)      │ stdio JSON-RPC
+                ▼                          ▼
+┌──────────────────────────┐  ┌──────────────────────────────┐
+│  React 19 前端（WebView） │  │  Node Sidecar（flowmark-agent）│
+│  - 三栏工作区 UI          │  │  - LangChain.js Agent          │
+│  - Markdown 渲染          │  │  - ChatOpenAI（OpenAI 兼容）    │
+│  - 调 Rust 命令            │  │  - Tools（index/search/read/    │
+│  - Agent 事件流（Rust 转发）│  │    propose_replace/create）    │
+└──────────────────────────┘  │  - 最多 6 步 tool-call 循环     │
+                              │  - Preview 回退（未配置时）      │
+                              └──────────────────────────────┘
+```
+
+**职责边界**：
+
+- Rust：所有文件 I/O、持久化、索引、凭据存储、sidecar 进程管理
+- Node Sidecar：所有 LangChain 调用、LLM 流式、tool-call 循环、Agent 路由逻辑
+- React：纯 UI + 调 Rust 命令；Agent 流式事件由 Rust 从 sidecar 转发到前端
+
+**不沿用任何旧代码**，所有文件从零创建。
 
 ---
 
@@ -85,34 +109,79 @@ Tauri 2 + React 19 + Vite + TypeScript，Rust 后端（`src-tauri/src/main.rs` �
 ### 阶段 0：分支与基线（已完成）
 
 - [x] 新分支 `flowmark/windows-rewrite` from `main`（9ac8277）
-- [x] 旧分支 `codex/private-agent-workflow` 的 WIP 已 stash 保留（`wip-before-flowmark-windows-rewrite`）
-- [x] 工作树干净
-
-后续所有 PR 都基于 `flowmark/windows-rewrite`。
+- [x] 工作区全部清空，仅保留本迁移文档（commit `d32d2e2`）
+- [x] force push 到 `origin/flowmark/windows-rewrite`，`main` 保留作回滚点
+- [x] 旧 stash `wip-before-flowmark-windows-rewrite` 保留
 
 ---
 
-### 阶段 1：项目标识与骨架重命名
+### 阶段 1：项目骨架（Tauri + Node Sidecar + React，从零）
 
-**目标**：把 Tauri 工程标识对齐 FlowMark 品牌，Windows 优先。
+**目标**：从空仓库搭起 Tauri 2 + React 19 + Node sidecar 三进程骨架，Windows-only。
+
+**目录结构**：
+
+```
+tauri-markdown-reader/
+├── docs/FLOWMARK_WINDOWS_MIGRATION_PLAN.md   # 本文档
+├── package.json                               # 根 monorepo（pnpm workspace）
+├── pnpm-workspace.yaml
+├── .gitignore
+├── .github/workflows/ci.yml                   # Windows 矩阵 CI
+├── src/                                       # React 前端
+│   ├── main.tsx
+│   ├── App.tsx
+│   └── ...
+├── src-tauri/                                 # Tauri Rust 主进程
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── build.rs
+│   ├── capabilities/default.json
+│   ├── icons/                                 # 临时占位图标，后续替换 FlowMark 品牌
+│   └── src/
+│       ├── main.rs
+│       └── lib.rs                             # 命令注册 + sidecar 启动
+├── src-sidecar/                               # Node sidecar（LangChain Agent）
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── server.ts                              # stdio JSON-RPC 入口
+│   └── agent/                                 # LangChain 实现
+└── scripts/
+    └── build-sidecar.cjs                      # 把 src-sidecar 打成单文件 cjs 给 Tauri bundle
+```
 
 **改动清单**：
 
-- `src-tauri/tauri.conf.json`
-  - `mainBinaryName`: `tauri-markdown-reader` → `flowmark`
-  - `identifier`: `local.markdown.reader` → `local.flowmark.windows`
-  - `productName`: 保持 `FlowMark`
-  - `bundle.targets`: `"all"` → `["msi", "nsis"]`（Windows 优先，macOS 后续）
-- `package.json`
-  - `name`: `tauri-markdown-reader` → `flowmark-windows`
-  - `version`: 对齐 iOS `1.0.0`
-- `src-tauri/Cargo.toml`
-  - `name`: `tauri-markdown-reader` → `flowmark-windows`
-  - bins 重命名：`tauri-markdown-reader` → `flowmark`，`md-reader` → `flowmark-cli`
-- 窗口标题/最小尺寸：对齐 Mac `MacWritingWorkspace`（minWidth 1120×740）；Tauri 当前 1180×720，OK
-- 图标：沿用 `src-tauri/icons/`（若需重做 FlowMark 品牌图标，单独 PR）
+- `src-tauri/tauri.conf.json`（从零写）：
+  - `productName`: `FlowMark`
+  - `mainBinaryName`: `flowmark`
+  - `identifier`: `local.flowmark.windows`
+  - `bundle.targets`: `["msi", "nsis"]`（Windows-only）
+  - `bundle.externalBin`: `["binaries/flowmark-agent"]`（Node sidecar，打包时由 `scripts/build-sidecar.cjs` 产出）
+  - `app.security.csp`: 严格 CSP（只允许 self + Tauri 协议；对外网请求走 sidecar，前端不发外网）
+  - 窗口标题 `FlowMark`，最小尺寸 1120×740（对齐 Mac `MacWritingWorkspace`）
+- `src-tauri/Cargo.toml`（从零写）：
+  - `name`: `flowmark-windows`
+  - 依赖：`tauri` 2、`tauri-plugin-shell` 2、`serde`、`serde_json`、`rusqlite`、`keyring`、`sha2`、`tokio`
+- `src-tauri/src/lib.rs`（从零写）：
+  - `tauri::Builder` 注册命令、启动 sidecar
+  - sidecar 启动模式参考 `synle/tauri-desktop-node-sidecar-template`：`std::process::Command` spawn `node resources/flowmark-agent.cjs`，stdin/stdout JSON-RPC，stderr 日志；Windows 加 `CREATE_NO_WINDOW`
+  - dev 模式下不 spawn 打包版，直接连 `node src-sidecar/server.ts`（或 vite-node 热重载）
+- `package.json`（根，从零写）：
+  - `name`: `flowmark-windows`
+  - `version`: `1.0.0`（对齐 iOS）
+  - scripts: `dev` / `build` / `tauri:dev` / `tauri:build` / `build:sidecar`
+- `src-sidecar/package.json`（从零写）：
+  - 依赖：`langchain`、`@langchain/openai`、`@langchain/core`、`zod`
+  - 入口：`server.ts`，stdio JSON-RPC
+- React 19 + Vite 前端骨架（从零写 `vite.config.ts`、`tsconfig.json`、`src/main.tsx`、`src/App.tsx`）
 
-**验收**：`pnpm tauri:dev` 能启动，窗口标题为 FlowMark，`flowmark.exe` 产物名正确。
+**验收**：
+- `pnpm tauri:dev` 能启动 Tauri 窗口 + Node sidecar
+- Rust 能通过 stdio 收到 sidecar 的 `{ "jsonrpc": "2.0", "method": "ping" }` 响应
+- 窗口标题为 FlowMark
+- `cargo test` 通过（基础 smoke test）
+- CI（`.github/workflows/ci.yml`）在 Windows runner 上能跑 `cargo build` + `pnpm build`
 
 ---
 
@@ -130,16 +199,16 @@ Tauri 2 + React 19 + Vite + TypeScript，Rust 后端（`src-tauri/src/main.rs` �
 | `LongformMemoryStore` | `flowmark/memory/<doc>.json` | AppData |
 | `OperationHistoryStore` | `flowmark/operation_history.json` | AppData |
 | `ModelConfigurationStore` (Keychain) | Windows Credential Manager（`keyring` crate） | 系统凭据库 |
-| `ClientDocumentIndexStore` (SQLite) | `rusqlite`（已依赖）`flowmark/index.db` | AppData |
+| `ClientDocumentIndexStore` (SQLite) | `rusqlite` `flowmark/index.db` | AppData |
 
-**Rust 命令新增**：
+**Rust 命令新增**（从零实现）：
 
 - `load_library_state` / `save_library_state`
 - `list_document_versions` / `restore_document_version`
 - `load_agent_sessions` / `save_agent_session` / `archive_agent_session`
 - `load_operation_history` / `save_operation_history`
 - `load_longform_memory` / `save_longform_memory`
-- `get_model_config` / `set_model_config`
+- `get_model_config` / `set_model_config`（API key 走 `keyring`，不落盘）
 - `list_agent_skills` / `save_agent_skill`
 
 **测试**：`cargo test` 覆盖序列化/反序列化、版本备份恢复、会话归档。
@@ -174,65 +243,82 @@ CREATE INDEX idx_chunks_document ON chunks(document_id);
 
 **要点**：
 
-- 指纹用 SHA-256 内容哈希，未变更直接复用缓存（对齐 iOS `fingerprint`）
+- 指纹用 SHA-256 内容哈希（`sha2` crate），未变更直接复用缓存
 - 分块策略：按标题层级 + 段落，对齐 iOS `ClientDocumentIndex`
 - 命令：
   - `build_index(paths)` — 构建/刷新索引
   - `search_index(query, limit)` — 跨文档分块检索
   - `read_chunk(chunk_id)` — 读单个分块
   - `index_stats(document_id)` — 分块数/标题/命中
-- 把现有 `search_workspace`（全文）和 `search_index`（语义分块）分开：
-  - `search_workspace` → 文件名/标题/正文片段（保留现有）
-  - `search_index` → 跨文档分块检索（新增，对应 iOS `document.search`）
+- `search_workspace`（文件名/标题/正文片段）与 `search_index`（语义分块）分开
 
-**测试**：`cargo test` 覆盖指纹缓存命中、分块边界、中文/英文混合检索。
+**测试**：`cargo test` 覆盖指纹缓存命中、分块边界、中英文混合检索。
 
 ---
 
-### 阶段 4：Agent 核心（路由 + 网关 + 运行时）
+### 阶段 4：Agent 核心（LangChain.js + Node Sidecar）
 
-**目标**：对齐 iOS Agent 全链路。
+**目标**：对齐 iOS Agent 全链路，但用 LangChain 实现，跑在 Node sidecar 里。Rust 侧只负责转发 JSON-RPC + 取消 + 持久化。
 
-#### 4.1 路由（`agent_router.rs`）
+#### 4.0 Sidecar JSON-RPC 协议
 
-- 保留现有 `agent_router.rs`（已与 iOS 同构）
+Rust ↔ Node 之间用 stdio 上的 JSON-RPC 2.0 通信：
+
+- 请求（Rust → Node）：`{ "jsonrpc": "2.0", "id": "<run_id>", "method": "agent.run", "params": { ... } }`
+- 响应流（Node → Rust）：多条 `notification`，method 为 `agent.event`，params 含 `{ type: "metadata|delta|tool_call|tool_result|done|error", ... }`
+- 取消（Rust → Node）：`{ "jsonrpc": "2.0", "method": "agent.cancel", "params": { "run_id": "..." } }`
+- Rust 收到 sidecar 事件后，通过 Tauri event 转发到前端
+
+#### 4.1 路由（`src-sidecar/agent/router.ts`）
+
+从零用 TS 重写 iOS `AgentRouter`（纯函数）：
+
+- `stripSlashPrefix` / slash 别名 → 意图关键词 → Profile 默认 skill
 - 补齐 iOS `AgentSkill` 全部 case：
   - `chat / understand / ask / academic / plantUML / paperAnnotation / novel / presentation / wechatFormat / autoImage / autoFormula / translate / mindmap / compare / htmlAuthor / organize / deliverable / review / followups / distillSkill`
-- 补齐 `launchSkills`：`[chat, academic, novel, htmlAuthor, presentation, compare]`
-- 补齐 `mappedTask` 映射
-- 补齐 Profile 默认 skill（general→chat, academic→academic, novel→novel, html→htmlAuthor）
+- `launchSkills`: `[chat, academic, novel, htmlAuthor, presentation, compare]`
+- `mappedTask` 映射
+- Profile 默认 skill：general→chat, academic→academic, novel→novel, html→htmlAuthor
 
-#### 4.2 网关（`run_agent_stream`）
+**测试**：Vitest 覆盖路由（slash/intent/default/forced/override）。
 
-- 读 `ModelConfiguration`：
-  - 未配置 → 走 `PreviewAgentGateway`（确定性本地预览，对齐 iOS `PreviewAgentGateway.content(for:...)`，不联网）
-  - 已配置 → OpenAI 兼容 chat completions，SSE 流式，tool-call 循环（对齐 `RemoteLLMGateway`）
-- 端点示例：openai / deepseek / glm / custom（README 已列）
-- 流式事件：`metadata` / `delta` / `tool_call` / `tool_result` / `done` / `error`
-- 命令：`run_agent_stream(request)` → 返回 `Stream` 事件流（Tauri event）
+#### 4.2 网关（`src-sidecar/agent/gateway.ts`，LangChain 实现）
 
-#### 4.3 本地工具运行时（`ClientAgentRuntime` 等价物）
+- 读 `ModelConfiguration`（Rust 通过 JSON-RPC `config.get` 提供，API key 不进 sidecar 日志）：
+  - 未配置 → `PreviewAgentGateway`（确定性本地预览，对齐 iOS `PreviewAgentGateway.content(for:...)`，不联网，纯 TS 函数）
+  - 已配置 → `@langchain/openai` 的 `ChatOpenAI`，`streaming: true`，OpenAI 兼容端点（openai / deepseek / glm / custom）
+- 流式：LangChain `stream()` 产出 chunk，逐条包成 `agent.event { type: "delta" }` 发回 Rust
+- 端点示例：openai / deepseek / glm / custom
 
-Rust 实现 `document.index / search / read / propose_replace / propose_create`：
+#### 4.3 本地工具运行时（`src-sidecar/agent/runtime.ts`，LangChain Tools）
 
-- 最多 6 步（对齐 iOS `maxSteps = 6`）
-- 工具只读 + 提议草稿，**绝不直接写文件**
+用 LangChain `Tool` 接口实现 iOS `ClientAgentRuntime` 的等价物：
+
+- `document_index` — 调 Rust `build_index`/`index_stats`（通过 JSON-RPC `tool.call` 转发到 Rust）
+- `document_search` — 调 Rust `search_index`
+- `document_read` — 调 Rust `read_chunk` / `read_document`
+- `document_propose_replace` — 生成草稿，不写文件
+- `document_propose_create` — 生成草稿，不写文件
+
+要点：
+
+- 最多 6 步（对齐 iOS `maxSteps = 6`），用 LangChain `AgentExecutor` 的 `maxIterations`
+- 工具只读 + 提议草稿，**绝不直接写文件**（写文件走阶段 5 的 `apply_agent_draft`，Rust 侧执行）
 - `runtimePrompt` 对齐 iOS `ClientAgentRuntime.runtimePrompt`
-- 每步工具调用 → 返回 JSON 结果 → 模型决定下一步或最终回答
+- LangChain `AgentExecutor` 自动处理 tool-call 循环；每步工具调用 → `tool_call` 事件 → 工具结果 → `tool_result` 事件 → 模型决定下一步或最终回答
 
 #### 4.4 取消与隔离
 
-- 取消：沿用 `CANCELLED_AI_RUNS` + `cancel_ai_run(run_id)`
-- 会话隔离：对齐 `AgentSessionTests`：
-  - 每个 run_id 独立状态
-  - 取消时清理，不留空 assistant 消息
-  - 归档会话可恢复
+- 取消：Rust 侧维护 `CANCELLED_RUNS` set，收到前端 cancel → 发 `agent.cancel` JSON-RPC → sidecar 中止 LangChain 迭代（`AbortController`）
+- 会话隔离：每个 `run_id` 独立 sidecar 会话状态；取消时清理，不留空 assistant 消息；归档会话可恢复
 
-**测试**：`cargo test` 覆盖路由（slash/intent/default/forced/override）、preview 网关确定性输出、tool-call 循环、取消清理。
+**测试**：
+- Vitest：路由、preview 网关确定性输出、tool-call 循环（mock LLM）
+- `cargo test`：JSON-RPC 转发、取消清理
 
 ---
 
-### 阶段 5：写回流程（Windows 版 MacAgentDraftResolver）
+### 阶段 5：写回流程（Rust 侧 `resolve_agent_draft`）
 
 **目标**：对齐 iOS Mac 端 `MacAgentDraftResolver`，Agent 编辑提议落回文档并保留版本历史。
 
@@ -311,15 +397,15 @@ struct ResolvedDraft {
 
 #### 6.6 Markdown 渲染
 
-- 沿用 `markdown.ts`（marked + marked-katex + marked-highlight + mermaid）
-- 补 PlantUML 渲染（对齐 `PlantUMLRenderURL`）：
+- 从零写 `markdown.ts`（marked + marked-katex + marked-highlight + mermaid）
+- PlantUML 渲染（对齐 `PlantUMLRenderURL`）：
   - zlib deflate + PlantUML 字母表编码 → plantuml.com png URL
-  - 纯前端 JS 实现即可，`pako` 做 deflate
+  - 纯前端 JS 实现，`pako` 做 deflate
 - 预览规整（对齐 `MarkdownRenderNormalizer`）：
   - 去 markdown 包裹围栏
   - 修 Mermaid/PlantUML 围栏
   - 裸 PlantUML 收拢成围栏块
-  - 在 `markdown.ts` 里加 `normalizeRenderContent`
+  - `markdown.ts` 里加 `normalizeRenderContent`
 
 ---
 
@@ -327,7 +413,7 @@ struct ResolvedDraft {
 
 #### 7.1 导出
 
-- 沿用现有 Word/PDF/HTML 导出（已对齐 iOS `DocumentExportKind`）
+- 从零实现 Word/PDF/HTML 导出（Rust 侧，对齐 iOS `DocumentExportKind`）
 - 补"复制 Markdown / 纯文本 / HTML"
 
 #### 7.2 PlantUML
@@ -338,22 +424,21 @@ struct ResolvedDraft {
 
 - API key 只进 Credential Manager
 - 文档内容、Agent 历史、索引、操作历史不离开设备
-- 只有用户主动发起 Agent 时才把 prompt+上下文发到用户自配端点
-- CSP 已严格，保持
+- 只有用户主动发起 Agent 时才把 prompt+上下文发到用户自配端点（请求由 sidecar 发出，不由前端发出）
+- CSP 严格，前端不发外网请求
 
 #### 7.4 测试
 
-- iOS 用 `@main enum` 命令行测试
-- Windows 侧：
-  - `cargo test`（Rust 单测：路由/索引/写回解析）
-  - Vitest（前端：路由镜像 / normalizer / PlantUML 编码）
-- CI 在 `.github/workflows/` 加 Windows 矩阵
+- `cargo test`（Rust 单测：持久化/索引/写回解析/JSON-RPC 转发）
+- Vitest（前端 + sidecar：路由镜像 / normalizer / PlantUML 编码 / LangChain 工具 mock）
+- CI 在 `.github/workflows/` Windows 矩阵跑 `cargo test` + `pnpm test` + `pnpm build`
 
 #### 7.5 发版
 
-- 沿用 `tauri build` + GitHub Actions
+- `tauri build` + GitHub Actions（Windows runner）
 - 产物：`flowmark-windows-x.x.x-x64.msi` / `.exe`
 - 版本号对齐 iOS（`1.0.0` + build）
+- sidecar 打包：`scripts/build-sidecar.cjs` 用 esbuild 把 `src-sidecar` 打成单文件 `flowmark-agent.cjs`，Tauri `externalBin` 引用；运行时依赖系统 Node（CI 文档说明需装 Node 20+），或后续 PR 探讨 bundle Node runtime
 
 ---
 
@@ -361,31 +446,25 @@ struct ResolvedDraft {
 
 | PR | 阶段 | 内容 | 风险 | 预估工作量 |
 |---|---|---|---|---|
-| #1 | 1 + 2 | 重命名 + 数据模型/持久化层 Rust 命令 + 单测 | 低 | 中 |
-| #2 | 3 | SQLite 分块索引 + 命令 + 单测 | 中（schema 设计） | 中 |
-| #3 | 4 | Agent 网关（OpenAI 兼容流式 + Preview 回退）+ 路由补全 + 本地工具运行时 | 高（流式 + tool-call） | 大 |
-| #4 | 5 | 写回流程（draft resolver + 版本备份 + 确认 UI） | 中 | 中 |
-| #5 | 6 | 前端三栏工作区重构 + Agent 面板 + 本地知识搜索 | 高（UI 量大） | 大 |
-| #6 | 6 | 7 语言本地化 + PlantUML 渲染 + normalizer | 中 | 中 |
-| #7 | 7 | 导出对齐 + 隐私审计 + Windows CI + 发版 | 低 | 中 |
+| #1 | 1 | Tauri + Node sidecar + React 骨架从零搭建 + Windows CI | 中（sidecar 通信） | 中 |
+| #2 | 2 | 数据模型/持久化层 Rust 命令 + 单测 | 低 | 中 |
+| #3 | 3 | SQLite 分块索引 + 命令 + 单测 | 中（schema 设计） | 中 |
+| #4 | 4 | LangChain Agent（router + gateway + tools + JSON-RPC）+ Vitest | 高（LangChain + 流式） | 大 |
+| #5 | 5 | 写回流程（draft resolver + 版本备份 + 确认 UI） | 中 | 中 |
+| #6 | 6 | 前端三栏工作区重构 + Agent 面板 + 本地知识搜索 | 高（UI 量大） | 大 |
+| #7 | 6 | 7 语言本地化 + PlantUML 渲染 + normalizer | 中 | 中 |
+| #8 | 7 | 导出对齐 + 隐私审计 + Windows CI 完善 + 发版 | 低 | 中 |
 
 ---
 
-## 四、需要确认的几点
+## 四、已确认的决策（v2）
 
-1. **是否保留 main 上现有 Tauri 骨架**？
-   - 建议：保留（省去 Windows 打包/签名/WebView2 重新趟坑），只重写业务层
-   - 若要完全清空，换起点
-
-2. **平台范围**：Windows-only，还是 Windows 优先 + 保留 macOS？
-   - 建议：Windows-only 配置（`bundle.targets: ["msi", "nsis"]`），macOS 后续再说
-
-3. **API key 存储**：Windows 用 Credential Manager（`keyring` crate），同意？
-
-4. **本地化范围**：iOS 7 语言全迁，还是先 en / zh-Hans / zh-Hant 三语言，其余后补？
-
-5. **第一个 PR 想从哪个阶段开始**？
-   - 建议：从阶段 1 + 2（重命名 + 持久化层）起步，落地快、风险低
+1. **是否保留 main 上现有 Tauri 骨架**：✅ **不保留**，全部从零重写，不从 git 历史捞旧文件
+2. **平台范围**：✅ **Windows-only**（`bundle.targets: ["msi", "nsis"]`），不做 macOS
+3. **API key 存储**：✅ Windows Credential Manager（`keyring` crate）
+4. **Agent 实现方式**：✅ **LangChain.js**（`langchain` + `@langchain/openai`），跑在 Node sidecar 进程，Rust 通过 stdio JSON-RPC 通信
+5. **本地化范围**：iOS 7 语言全迁（en / zh-Hans / zh-Hant / ja / ko / de / fr）
+6. **第一个 PR 从阶段 1 起步**：搭三进程骨架
 
 ---
 
