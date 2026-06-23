@@ -26,10 +26,20 @@ tokio = { version = "1", features = ["full"] }
 log = "0.4"
 # 错误类型派生
 thiserror = "1"
-# 日志后端（阶段 1 用，后续可换 tracing-subscriber）
+# 日志后端
 env_logger = "0.11"
-# 后续阶段用到：rusqlite / keyring / sha2 / anyhow
-# 阶段 1 暂不引入，保持依赖最小
+# 系统数据目录定位（AppData / Library / XDG）
+dirs-next = "2"
+# Windows Credential Manager / Keychain 凭据存储
+keyring = "3"
+# 临时目录（测试用）
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"
+
+# 后续阶段用到：rusqlite / sha2 / anyhow
+# 阶段 2 暂不引入，保持依赖最小
 
 [features]
 # 自定义 feature，用于在 dev 模式下跳过打包版 sidecar

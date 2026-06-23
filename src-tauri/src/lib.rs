@@ -1,13 +1,16 @@
 //! FlowMark Windows 桌面版 - Rust 主进程入口
 //!
 //! 架构总览见 docs/FLOWMARK_WINDOWS_MIGRATION_PLAN.md
-//! 阶段 1 范围：
-//!   1. 注册最小 Tauri 命令集（get_app_version / sidecar_ping）
-//!   2. 启动 Node sidecar 并管理其生命周期
-//!   3. 验证 Rust ↔ sidecar ↔ React 三方链路通畅
+//!
+//! 阶段 1：sidecar 骨架
+//! 阶段 2：数据模型 + 持久化层命令
 
+mod commands;
+mod models;
 mod sidecar;
+mod store;
 
+use crate::commands::AppState;
 use sidecar::{SidecarError, SidecarHandle};
 use std::sync::Mutex;
 use tauri::Manager;
@@ -24,8 +27,6 @@ fn get_app_version() -> &'static str {
 }
 
 /// 通过 Rust 转发一次 sidecar ping，验证 stdio JSON-RPC 链路
-///
-/// 返回 sidecar 响应的原始字符串，前端用于显示状态
 #[tauri::command]
 fn sidecar_ping(state: tauri::State<SidecarState>) -> Result<String, String> {
     let guard = state.0.lock().map_err(|e| format!("锁中毒: {e}"))?;
@@ -38,14 +39,11 @@ fn sidecar_ping(state: tauri::State<SidecarState>) -> Result<String, String> {
         "params": {}
     });
 
-    let resp = handle
-        .request(&request)
-        .map_err(|e| e.to_string())?;
-
+    let resp = handle.request(&request).map_err(|e| e.to_string())?;
     Ok(resp.to_string())
 }
 
-/// 应用退出钩子：确保 sidecar 子进程被回收，避免孤儿进程
+/// 应用退出钩子：确保 sidecar 子进程被回收
 fn cleanup_sidecar(state: &SidecarState) {
     if let Ok(mut guard) = state.0.lock() {
         if let Some(handle) = guard.take() {
@@ -56,22 +54,26 @@ fn cleanup_sidecar(state: &SidecarState) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 简单日志：阶段 1 用 env_logger 即可，后续阶段可换 tracing
     let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // 决定 sidecar 脚本路径：
-            //   - dev 模式：直接跑 src-sidecar 的编译产物（由 build:sidecar 生成到 resources/）
-            //   - release 模式：从 Tauri resource 目录读取
+            // 初始化 AppPaths + 确保数据目录存在
+            let app_state = match AppState::system() {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("AppPaths 初始化失败: {e}");
+                    return Err(e.into());
+                }
+            };
+            app.manage(app_state);
+
+            // 决定 sidecar 脚本路径
             let script_path = if cfg!(debug_assertions) {
-                // dev：用工作区根的 sidecar 编译产物（pnpm build:sidecar 产出）
-                // 路径相对 cargo manifest，即 src-tauri/
                 "resources/flowmark-agent.cjs".to_string()
             } else {
-                // release：resource_dir 由 Tauri 在打包时注入
                 let resource_dir = app
                     .path()
                     .resource_dir()
@@ -89,7 +91,6 @@ pub fn run() {
                     log::info!("sidecar 初始化完成");
                 }
                 Err(e) => {
-                    // sidecar 起不来不阻塞 UI，前端会显示错误，后续可加重试
                     log::error!("sidecar 启动失败: {e}");
                     app.manage(SidecarState(Mutex::new(None)));
                 }
@@ -97,14 +98,42 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 主窗口关闭时清理 sidecar
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(state) = window.app_handle().try_state::<SidecarState>() {
                     cleanup_sidecar(&state);
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_app_version, sidecar_ping])
+        .invoke_handler(tauri::generate_handler![
+            // 阶段 1
+            get_app_version,
+            sidecar_ping,
+            // 阶段 2：library
+            commands::load_library_state,
+            commands::save_library_state,
+            commands::read_document_content,
+            commands::write_document_content,
+            // 阶段 2：sessions
+            commands::list_agent_sessions,
+            commands::load_agent_session,
+            commands::save_agent_session,
+            commands::archive_agent_session,
+            commands::delete_agent_session,
+            // 阶段 2：operation history
+            commands::load_operation_history,
+            commands::append_operation_history,
+            commands::clear_operation_history,
+            // 阶段 2：model config
+            commands::get_model_config,
+            commands::set_model_config,
+            commands::get_api_key,
+            commands::set_api_key,
+            commands::delete_api_key,
+            // 阶段 2：longform memory
+            commands::load_longform_memory,
+            commands::append_longform_memory,
+            commands::clear_longform_memory
+        ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");
 }
