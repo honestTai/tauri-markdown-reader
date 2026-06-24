@@ -85,6 +85,116 @@ pub fn write_document_content(
     Ok(library)
 }
 
+// ============ Library 扩展命令（阶段 6） ============
+
+/// 列出指定文档的所有版本快照（按时间倒序）
+#[tauri::command]
+pub fn list_document_versions(
+    state: tauri::State<AppState>,
+    library: LibraryState,
+    doc_id: String,
+) -> AppResult<Vec<crate::models::DocumentVersion>> {
+    Ok(library_repo(&state).list_versions(&library, &doc_id))
+}
+
+/// 读取某个版本快照的正文（前端版本历史面板用）
+#[tauri::command]
+pub fn read_version_content(
+    state: tauri::State<AppState>,
+    library: LibraryState,
+    version_id: String,
+) -> AppResult<String> {
+    library_repo(&state).read_version_content(&library, &version_id)
+}
+
+/// 恢复指定版本：先备份当前内容，再把版本快照写回文档
+#[tauri::command]
+pub fn restore_document_version(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+    doc_id: String,
+    version_id: String,
+) -> AppResult<LibraryState> {
+    let _backup = library_repo(&state).restore_version(&mut library, &doc_id, &version_id)?;
+    Ok(library)
+}
+
+/// 删除文档（移除文件 + 元数据 + 索引）
+#[tauri::command]
+pub fn delete_document(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+    doc_id: String,
+) -> AppResult<LibraryState> {
+    let repo = library_repo(&state);
+    repo.delete_document(&mut library, &doc_id)?;
+    // 同步删除索引
+    if let Ok(idx) = IndexRepository::open(&state.paths) {
+        let _ = idx.delete_document(&doc_id);
+    }
+    Ok(library)
+}
+
+/// 设置工作区根目录（首次启动 / 切换工作区时调用）
+#[tauri::command]
+pub fn set_workspace_root(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+    root: String,
+) -> AppResult<LibraryState> {
+    library_repo(&state).set_workspace_root(&mut library, root)?;
+    Ok(library)
+}
+
+/// 扫描工作区下的所有 .md 文件，返回相对路径列表
+#[tauri::command]
+pub fn scan_workspace(workspace_root: String) -> AppResult<Vec<String>> {
+    LibraryRepository::scan_workspace(&workspace_root)
+}
+
+/// 把工作区里的一个 .md 文件导入文档库
+#[tauri::command]
+pub fn import_document(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+    path: String,
+    title: Option<String>,
+) -> AppResult<LibraryState> {
+    library_repo(&state).import_file(&mut library, &path, title.as_deref())?;
+    Ok(library)
+}
+
+/// 批量导入工作区下所有 .md 文件（首次选择工作区后调用）
+#[tauri::command]
+pub fn import_all_from_workspace(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+) -> AppResult<LibraryState> {
+    if library.workspace_root.is_empty() {
+        return Err(AppError::InvalidArgument("工作区根目录未设置".into()));
+    }
+    let repo = library_repo(&state);
+    let files = LibraryRepository::scan_workspace(&library.workspace_root)?;
+    for rel in files {
+        // 路径已存在的会被 import_file 跳过（更新 title）
+        let _ = repo.import_file(&mut library, &rel, None);
+    }
+    Ok(library)
+}
+
+/// 新建空文档
+#[tauri::command]
+pub fn create_document(
+    state: tauri::State<AppState>,
+    mut library: LibraryState,
+    title: String,
+    content: Option<String>,
+) -> AppResult<LibraryState> {
+    let body = content.unwrap_or_else(|| format!("# {title}\n\n"));
+    library_repo(&state).create_document(&mut library, &title, &body)?;
+    Ok(library)
+}
+
 // ============ Sessions 命令 ============
 
 #[tauri::command]

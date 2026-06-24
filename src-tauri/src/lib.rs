@@ -133,6 +133,16 @@ pub fn run() {
             commands::save_library_state,
             commands::read_document_content,
             commands::write_document_content,
+            // 阶段 6：library 扩展
+            commands::list_document_versions,
+            commands::read_version_content,
+            commands::restore_document_version,
+            commands::delete_document,
+            commands::set_workspace_root,
+            commands::scan_workspace,
+            commands::import_document,
+            commands::import_all_from_workspace,
+            commands::create_document,
             // 阶段 2：sessions
             commands::list_agent_sessions,
             commands::load_agent_session,

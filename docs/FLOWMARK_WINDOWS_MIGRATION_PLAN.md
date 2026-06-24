@@ -422,6 +422,19 @@ struct ResolvedDraft {
   - 裸 PlantUML 收拢成围栏块
   - `markdown.ts` 里加 `normalizeRenderContent`
 
+**实现状态（阶段 6 完成）**：
+
+- Rust 侧新增命令：`list_document_versions` / `read_version_content` / `restore_document_version` / `delete_document` / `set_workspace_root` / `scan_workspace` / `import_document` / `import_all_from_workspace` / `create_document`（commands.rs 注册、lib.rs invoke_handler 注册）
+- `store/library.rs` 新增：`list_versions` / `read_version_content` / `restore_version`（先备份后写回）/ `delete_document` / `set_workspace_root` / `scan_workspace`（递归跳过 `.*` 与 `node_modules`）/ `import_file`（去重）/ `walk_markdown` / `title_from_path`
+- 前端 i18n：`src/i18n/` 七语言字典 + `translate` 回退 en → key + `{var}` 占位符；`useLanguage` hook
+- 前端 lib：`markdown.ts`（marked + highlight.js + KaTeX，Mermaid/PlantUML 占位）、`plantuml.ts`（pako deflate + PlantUML 字母表编码 → PNG/SVG URL）
+- 前端 hooks：`useLanguage` / `useLibrary` / `useAgent`（事件流累积成消息）/ `useMarkdownRender`（Mermaid 动态 import + PlantUML img 替换）
+- 前端 panes：`DocumentSidebar`（工作区/新建/导入/搜索/过滤/收藏/删除）、`EditorPane`（edit/preview/split + Ctrl+S 保存）、`AgentPane`（消息流 + skill 选择 + 草稿预览/应用/丢弃）、`LocalKnowledgeSearch`、`SettingsPane`（模型配置 + 语言 + 索引重建）、`HistoryPane`
+- `App.tsx` 重写为三栏 + 右侧 tab（agent / localSearch / history / settings）
+- `index.css` 重写为三栏工作区样式 + 明暗主题 + markdown-body 渲染体
+- 新增依赖：`marked` / `marked-highlight` / `highlight.js` / `katex` / `mermaid` / `pako` / `@types/pako`
+- 测试：`cargo test` 69 passing（library.rs 新增 8 个）/ `pnpm test:src` 32 passing（i18n 12 + markdown 14 + plantuml 6）/ `pnpm test:sidecar` 51 passing（不变）/ `tsc --noEmit` 干净 / `pnpm build` 通过
+
 ---
 
 ### 阶段 7：导出、PlantUML、收尾

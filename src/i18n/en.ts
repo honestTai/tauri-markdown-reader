@@ -1,0 +1,103 @@
+/**
+ * English 翻译字典
+ *
+ * 对齐 iOS en.lproj/Localizable.strings 的 key 前缀
+ */
+export const en: Record<string, string> = {
+  // tab.*
+  "tab.library": "Library",
+  "tab.agent": "Agent",
+  "tab.localSearch": "Local Search",
+  "tab.history": "History",
+  "tab.settings": "Settings",
+
+  // library.*
+  "library.title": "Library",
+  "library.empty": "No documents yet. Pick a workspace to start.",
+  "library.pickWorkspace": "Pick Workspace",
+  "library.newDocument": "New Document",
+  "library.importAll": "Import All .md",
+  "library.starred": "Starred",
+  "library.all": "All",
+  "library.search": "Search documents",
+  "library.activeDocument": "Active",
+  "library.versions": "Versions",
+  "library.restore": "Restore",
+  "library.delete": "Delete",
+  "library.confirmDelete": "Delete this document? This cannot be undone.",
+  "library.untitled": "Untitled",
+
+  // reader.*
+  "reader.preview": "Preview",
+  "reader.edit": "Edit",
+  "reader.split": "Split",
+  "reader.save": "Save",
+  "reader.saved": "Saved",
+  "reader.star": "Star",
+  "reader.unstar": "Unstar",
+  "reader.empty": "Open or create a document to begin.",
+  "reader.wordCount": "{count} words",
+
+  // agent.*
+  "agent.title": "Agent",
+  "agent.inputPlaceholder": "Ask anything, or type / for commands…",
+  "agent.run": "Run",
+  "agent.stop": "Stop",
+  "agent.cancel": "Cancel",
+  "agent.retry": "Retry as chat",
+  "agent.copy": "Copy",
+  "agent.saveToLibrary": "Save to library",
+  "agent.clear": "Clear",
+  "agent.previewMode": "Preview mode — configure model in Settings.",
+  "agent.routedBy.forced": "forced",
+  "agent.routedBy.slash": "slash",
+  "agent.routedBy.intent": "intent",
+  "agent.routedBy.default": "default",
+  "agent.routedBy.override": "override",
+  "agent.sources": "Sources",
+  "agent.toolCalls": "Tool calls",
+  "agent.draft.apply": "Apply draft",
+  "agent.draft.discard": "Discard",
+  "agent.draft.cannotApply": "Cannot apply: {count} SEARCH block(s) not matched",
+  "agent.draft.applied": "Draft applied (backup saved)",
+  "agent.draft.title": "Draft preview",
+  "agent.skills": "Skills",
+
+  // settings.*
+  "settings.title": "Settings",
+  "settings.model": "Model configuration",
+  "settings.endpoint": "Endpoint",
+  "settings.endpointHint": "OpenAI-compatible base URL, e.g. https://api.openai.com/v1",
+  "settings.modelName": "Model",
+  "settings.modelNameHint": "e.g. gpt-4o-mini, deepseek-chat, glm-4-flash",
+  "settings.apiKey": "API key",
+  "settings.apiKeyHint": "Stored in Windows Credential Manager, never written to disk.",
+  "settings.save": "Save",
+  "settings.saved": "Saved",
+  "settings.language": "Language",
+  "settings.index": "Local index",
+  "settings.index.rebuild": "Rebuild index",
+  "settings.index.rebuilt": "Index rebuilt ({count} docs)",
+  "settings.index.stats": "{docs} documents · {chunks} chunks",
+  "settings.markdownGuide": "Markdown guide",
+
+  // history.*
+  "history.title": "Operation history",
+  "history.empty": "No operations recorded yet.",
+  "history.clear": "Clear history",
+  "history.kind.imported": "Imported",
+  "history.kind.openedExternal": "Opened external",
+  "history.kind.edited": "Edited",
+  "history.kind.ranAgent": "Ran Agent",
+  "history.kind.previewedHtml": "Previewed HTML",
+  "history.kind.savedAgentOutput": "Saved Agent output",
+  "history.kind.deletedDocument": "Deleted document",
+
+  // localSearch.*
+  "localSearch.title": "Local knowledge search",
+  "localSearch.placeholder": "Search across all indexed chunks…",
+  "localSearch.empty": "Type a query to search indexed chunks.",
+  "localSearch.noResults": "No matching chunks.",
+  "localSearch.results": "{count} chunk(s) matched",
+  "localSearch.jump": "Jump to document",
+};
