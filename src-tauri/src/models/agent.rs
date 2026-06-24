@@ -206,3 +206,72 @@ pub enum AgentContextTier {
     /// 完整：加入长文档记忆
     Full,
 }
+
+// ============ 阶段 5：Agent 写回草稿模型 ============
+//
+// 对齐 iOS MacAgentDraftResolver：
+//   - 把 Agent 产出（SEARCH/REPLACE 块 / 整文档 / 选区）解析成 ResolvedDraft
+//   - 草稿持久化在内存（StagedDraftRegistry，进程级），应用前先备份到 .flowmark/versions
+//   - 应用流程：propose → 用户确认 → apply（含备份）→ 写文件
+//   - discard 直接丢弃草稿，不动文件
+
+/// 草稿模式（对齐 iOS MacAgentDraftResolver 模式分支）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DraftMode {
+    /// 整文档替换（Agent 直接给完整新内容）
+    WholeDocument,
+    /// 选区替换（仅替换 editorSelection.replacingSelection 范围）
+    SelectedText,
+    /// SEARCH/REPLACE 块（对齐 iOS applySearchReplaceBlocks）
+    SearchReplace,
+    /// 创建新文档（对齐 document_propose_create）
+    Create,
+}
+
+/// 解析后的草稿（对齐 iOS ResolvedDraft）
+///
+/// 由 resolve_agent_draft 产出，前端用 content + missingSearches 渲染 diff 预览
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedDraft {
+    /// 草稿 id（UUID v4）
+    pub id: String,
+    /// 模式
+    pub mode: DraftMode,
+    /// 目标文档 id（Create 模式时为空）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
+    /// 目标文档标题（Create 模式时为新建标题，其他模式为原标题）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// 解析后的最终内容（前端用这个对比原文做 diff）
+    pub content: String,
+    /// SEARCH/REPLACE 模式下未命中的 search 片段（对齐 iOS missingSearches）
+    /// 非空时 canApply = false，提示用户 SEARCH 块未命中
+    #[serde(default)]
+    pub missing_searches: Vec<String>,
+    /// 命中的替换数（SearchReplace 模式用，其他模式为 0）
+    #[serde(default)]
+    pub replacement_count: u32,
+    /// 是否可以应用（missingSearches 非空或目标文档不存在时为 false）
+    pub can_apply: bool,
+    /// 草稿备注（来自 Agent 的 note）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// 已暂存的草稿（带原始上下文，供 apply 时使用）
+///
+/// 前端拿到 ResolvedDraft 后预览 diff；用户确认后调 apply_agent_draft(id)，
+/// Rust 侧用 StagedDraft 里的 context 完成备份 + 写文件。
+#[derive(Debug, Clone)]
+pub struct StagedDraft {
+    pub resolved: ResolvedDraft,
+    /// 应用前要备份的当前文档 id（WholeDocument / SelectedText / SearchReplace 用）
+    pub target_document_id: Option<String>,
+    /// 选区文本（SelectedText 模式用，应用时替换文档中第一次出现的该片段）
+    pub selection_text: Option<String>,
+    /// 创建时间戳（Unix 毫秒）
+    pub created_at: i64,
+}

@@ -85,7 +85,8 @@ export function createAgentTools(backend: ToolBackend): DynamicStructuredTool[] 
     description:
       "提议对现有文档做 SEARCH/REPLACE 编辑。不直接写文件，只生成草稿。" +
       "blocks 是若干 {search, replace} 对：search 必须是文档中出现的唯一文本片段，replace 是替换后的内容。" +
-      "用户会在 UI 预览 diff 后决定是否应用。返回草稿 id。",
+      "用户会在 UI 预览 diff 后决定是否应用。返回 { draftId, canApply, missingSearches, mode }。" +
+      "若 canApply 为 false，说明有 SEARCH 块未在文档中命中，需要调整 search 文本后重试。",
     schema: z.object({
       documentId: z.string().describe("目标文档 id"),
       blocks: z
@@ -98,12 +99,20 @@ export function createAgentTools(backend: ToolBackend): DynamicStructuredTool[] 
         .min(1)
         .describe("SEARCH/REPLACE 块列表"),
       note: z.string().optional().describe("本次编辑的说明（可选）"),
+      selectionText: z
+        .string()
+        .optional()
+        .describe(
+          "可选：编辑器选中的文本。提供时进入 selectedText 模式，" +
+          "仅替换文档中第一次出现的该选区（replace 取 blocks[0].replace）",
+        ),
     }),
-    func: async ({ documentId, blocks, note }) => {
+    func: async ({ documentId, blocks, note, selectionText }) => {
       const result = await backend.call("document_propose_replace", {
         documentId,
         blocks,
         note,
+        selectionText,
       });
       return JSON.stringify(result);
     },

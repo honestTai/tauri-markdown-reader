@@ -24,6 +24,10 @@ use crate::store::{
 };
 use crate::store::{AppError, AppResult};
 use crate::index::{IndexRepository, IndexStats, SearchHit};
+use crate::models::agent::{DraftMode, ResolvedDraft};
+use crate::store::drafts::{
+    self, EditorSelection, SearchReplaceBlock,
+};
 use std::sync::Mutex;
 // ============ 辅助：从 State 获取 repository ============
 
@@ -451,6 +455,142 @@ pub async fn agent_cancel(
     Ok(cancelled)
 }
 
+// ============ Agent 草稿命令（阶段 5） ============
+
+/// propose_agent_draft 入参（前端 → Rust）
+///
+/// 前端拿到 tool_result 里的 draftId 后，用这个命令重新取 ResolvedDraft 做 diff 预览。
+/// 也可以不经过 tool.call，由前端直接构造草稿（例如本地"重写全文"按钮）。
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposeAgentDraftArgs {
+    pub draft_id: String,
+}
+
+/// 取一条已暂存的 ResolvedDraft（前端预览 diff 用）
+#[tauri::command]
+pub fn propose_agent_draft(
+    _state: tauri::State<AppState>,
+    args: ProposeAgentDraftArgs,
+) -> AppResult<ResolvedDraft> {
+    drafts::get_draft(&args.draft_id)?
+        .ok_or_else(|| AppError::NotFound(format!("草稿 {} 不存在", args.draft_id)))
+}
+
+/// apply_agent_draft 返回
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyDraftResult {
+    /// 是否应用成功
+    pub applied: bool,
+    /// 模式
+    pub mode: DraftMode,
+    /// 涉及的文档 id（Create 模式下是新文档 id）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
+    /// Create 模式下新文档的相对路径
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// 备份的版本 id（WholeDocument / SelectedText / SearchReplace 模式下有值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_version_id: Option<String>,
+}
+
+/// 应用一条草稿（用户确认后调用）
+///
+/// 流程：
+///   1. take_staged 取出 StagedDraft（一次性，避免重复 apply）
+///   2. 校验 can_apply（missingSearches 非空则拒绝）
+///   3. WholeDocument / SelectedText / SearchReplace：
+///      - backup_to_version 备份当前内容到 .flowmark/versions
+///      - write_document_content 写入新内容
+///   4. Create：create_document 新建文档
+///   5. 返回 ApplyDraftResult
+#[tauri::command]
+pub fn apply_agent_draft(
+    state: tauri::State<AppState>,
+    draft_id: String,
+) -> AppResult<ApplyDraftResult> {
+    let staged = drafts::take_staged(&draft_id)?
+        .ok_or_else(|| AppError::NotFound(format!("草稿 {draft_id} 不存在")))?;
+    let resolved = staged.resolved.clone();
+
+    if !resolved.can_apply {
+        // 重新塞回 registry，让用户可以修改后再试
+        let mut s = staged;
+        s.created_at = crate::store::library::chrono_now_millis();
+        s.resolved = resolved.clone();
+        drafts::stage_draft(s)?;
+        return Err(AppError::InvalidArgument(format!(
+            "草稿无法应用：{} 个 SEARCH 块未命中",
+            resolved.missing_searches.len()
+        )));
+    }
+
+    let lib_repo = LibraryRepository::new(state.paths.clone());
+    match resolved.mode {
+        DraftMode::WholeDocument | DraftMode::SelectedText | DraftMode::SearchReplace => {
+            let doc_id = resolved
+                .document_id
+                .clone()
+                .ok_or_else(|| AppError::InvalidArgument("草稿缺少 documentId".into()))?;
+
+            let mut lib = lib_repo.load()?;
+            // 备份当前内容
+            let backup_note = resolved
+                .note
+                .clone()
+                .unwrap_or_else(|| "Agent 写回前自动备份".to_string());
+            let version = lib_repo.backup_to_version(&mut lib, &doc_id, Some(backup_note))?;
+
+            // 写入新内容
+            lib_repo.write_document_content(&mut lib, &doc_id, &resolved.content)?;
+            // write_document_content 改了 updated_at，落盘
+            lib_repo.save(&lib)?;
+
+            Ok(ApplyDraftResult {
+                applied: true,
+                mode: resolved.mode,
+                document_id: Some(doc_id),
+                path: None,
+                backup_version_id: Some(version.id),
+            })
+        }
+        DraftMode::Create => {
+            let title = resolved
+                .title
+                .clone()
+                .ok_or_else(|| AppError::InvalidArgument("Create 草稿缺少 title".into()))?;
+            let mut lib = lib_repo.load()?;
+            let doc = lib_repo.create_document(&mut lib, &title, &resolved.content)?;
+            Ok(ApplyDraftResult {
+                applied: true,
+                mode: DraftMode::Create,
+                document_id: Some(doc.id),
+                path: Some(doc.path),
+                backup_version_id: None,
+            })
+        }
+    }
+}
+
+/// discard_agent_draft 返回
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscardDraftResult {
+    pub discarded: bool,
+}
+
+/// 丢弃一条草稿（用户取消应用时调用）
+#[tauri::command]
+pub fn discard_agent_draft(
+    _state: tauri::State<AppState>,
+    draft_id: String,
+) -> AppResult<DiscardDraftResult> {
+    let ok = drafts::discard_draft(&draft_id)?;
+    Ok(DiscardDraftResult { discarded: ok })
+}
+
 // ============ 反向 tool.call 派发（sidecar → Rust） ============
 
 /// 派发一次 tool.call 到本地实现
@@ -512,26 +652,97 @@ pub fn dispatch_tool_call(
             Ok(serde_json::json!({ "rebuilt": rebuilt }))
         }
         "document_propose_replace" => {
-            // 阶段 5 实现 resolve_agent_draft；这里先返回草稿占位
+            // 阶段 5：解析 SEARCH/REPLACE 草稿并暂存，返回带 canApply / missingSearches 的元数据
             let document_id = args
                 .get("documentId")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| AppError::InvalidArgument("document_propose_replace 缺少 documentId".into()))?
                 .to_string();
-            let draft_id = uuid::Uuid::new_v4().to_string();
+            let blocks_arg = args
+                .get("blocks")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| AppError::InvalidArgument("document_propose_replace 缺少 blocks 数组".into()))?;
+            let mut blocks: Vec<SearchReplaceBlock> = Vec::with_capacity(blocks_arg.len());
+            for (i, b) in blocks_arg.iter().enumerate() {
+                let search = b
+                    .get("search")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| AppError::InvalidArgument(format!("blocks[{i}] 缺少 search")))?;
+                let replace = b
+                    .get("replace")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| AppError::InvalidArgument(format!("blocks[{i}] 缺少 replace")))?;
+                blocks.push(SearchReplaceBlock {
+                    search: search.to_string(),
+                    replace: replace.to_string(),
+                });
+            }
+            let selection = args
+                .get("selectionText")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| EditorSelection { replacing_selection: Some(s.to_string()) });
+            let note = args
+                .get("note")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            // 读当前文档内容（用于解析 SEARCH/REPLACE）
+            let lib_repo = LibraryRepository::new(paths.clone());
+            let lib = lib_repo.load()?;
+            let current = lib_repo.read_document_content(&lib, &document_id)?;
+
+            let (resolved, staged) = drafts::resolve_replace_draft(
+                &document_id,
+                &current,
+                blocks,
+                selection,
+                note,
+            )?;
+            let draft_id = resolved.id.clone();
+            let can_apply = resolved.can_apply;
+            let missing = resolved.missing_searches.clone();
+            let mode = resolved.mode;
+            let replacement_count = resolved.replacement_count;
+            drafts::stage_draft(staged)?;
+
             Ok(serde_json::json!({
                 "draftId": draft_id,
                 "documentId": document_id,
-                "mode": "searchReplace",
-                "note": "草稿已生成，阶段 5 接入 resolve_agent_draft 后支持 diff 预览"
+                "mode": mode,
+                "canApply": can_apply,
+                "missingSearches": missing,
+                "replacementCount": replacement_count,
             }))
         }
         "document_propose_create" => {
-            let draft_id = uuid::Uuid::new_v4().to_string();
+            // 阶段 5：解析创建草稿并暂存
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_propose_create 缺少 title".into()))?
+                .to_string();
+            let content = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("document_propose_create 缺少 content".into()))?
+                .to_string();
+            let note = args
+                .get("note")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let (resolved, staged) = drafts::resolve_create_draft(&title, content, note)?;
+            let draft_id = resolved.id.clone();
+            let can_apply = resolved.can_apply;
+            let mode = resolved.mode;
+            drafts::stage_draft(staged)?;
+
             Ok(serde_json::json!({
                 "draftId": draft_id,
-                "mode": "create",
-                "note": "草稿已生成，阶段 5 接入 apply_agent_draft 后支持落盘"
+                "mode": mode,
+                "title": title,
+                "canApply": can_apply,
             }))
         }
         other => Err(AppError::InvalidArgument(format!("未知工具: {other}"))),

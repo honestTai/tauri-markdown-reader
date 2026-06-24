@@ -98,6 +98,24 @@ describe("createAgentTools", () => {
       documentId: "d1",
       blocks: [{ search: "a", replace: "b" }],
       note: undefined,
+      selectionText: undefined,
+    });
+  });
+
+  it("document_propose_replace 支持 selectionText", async () => {
+    const backend = makeBackend();
+    const tools = createAgentTools(backend);
+    const prop = tools.find((t) => t.name === "document_propose_replace")!;
+    await prop.invoke({
+      documentId: "d1",
+      blocks: [{ search: "a", replace: "b" }],
+      selectionText: "选中文本",
+    });
+    expect(backend.calls).toHaveBeenCalledWith("document_propose_replace", {
+      documentId: "d1",
+      blocks: [{ search: "a", replace: "b" }],
+      note: undefined,
+      selectionText: "选中文本",
     });
   });
 

@@ -163,7 +163,11 @@ pub fn run() {
             commands::delete_indexed_document,
             // 阶段 4 Part 2：agent
             commands::agent_run,
-            commands::agent_cancel
+            commands::agent_cancel,
+            // 阶段 5：agent 草稿写回
+            commands::propose_agent_draft,
+            commands::apply_agent_draft,
+            commands::discard_agent_draft
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

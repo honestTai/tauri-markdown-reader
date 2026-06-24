@@ -353,6 +353,21 @@ struct ResolvedDraft {
 
 **测试**：`cargo test` 覆盖三种模式解析、SEARCH 块命中/未命中、选区替换边界、备份写入。
 
+**实现状态（阶段 5 完成）**：
+
+- `src-tauri/src/models/agent.rs`：新增 `DraftMode` / `ResolvedDraft` / `StagedDraft` 模型
+- `src-tauri/src/store/drafts.rs`：进程级 `StagedDraftRegistry` + 纯函数解析（`apply_search_replace_blocks` / `resolve_replace_draft` / `resolve_whole_document_draft` / `resolve_create_draft`）+ `stage_draft` / `get_draft` / `take_staged` / `discard_draft`
+- `src-tauri/src/store/library.rs`：新增 `backup_to_version`（备份到 `.flowmark/versions/<doc>.<ts>.md` + 元数据落 library.json）/ `create_document` / `find_document` / `document_abs_path`
+- `src-tauri/src/store/app_paths.rs`：新增 `versions_rel_dir()` 常量
+- `src-tauri/src/commands.rs`：
+  - `dispatch_tool_call` 的 `document_propose_replace` / `document_propose_create` 从占位换成真实草稿解析 + 暂存，返回 `{ draftId, canApply, missingSearches, mode, replacementCount }`
+  - 新增 Tauri 命令 `propose_agent_draft` / `apply_agent_draft` / `discard_agent_draft`
+  - `apply_agent_draft` 流程：`take_staged` → 校验 `can_apply` → `backup_to_version` → `write_document_content`（Create 模式走 `create_document`）
+- `src-tauri/src/lib.rs`：注册三个新命令
+- `src-sidecar/agent/tools.ts`：`document_propose_replace` 增加 `selectionText` 可选字段（驱动 selectedText 模式），描述更新为返回 `{ draftId, canApply, missingSearches, mode }`
+- `src/types/index.ts`：新增 `DraftMode` / `ResolvedDraft` / `ProposeAgentDraftArgs` / `ApplyDraftResult` / `DiscardDraftResult`
+- 测试：`cargo test` 62 passing（含 drafts.rs 9 个、library.rs 3 个新增）/ `vitest` 51 passing（含 selectionText 透传）/ `tsc --noEmit` 干净
+
 ---
 
 ### 阶段 6：前端 UI（React）对齐 Mac 工作区

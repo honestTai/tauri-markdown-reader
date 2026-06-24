@@ -12,6 +12,7 @@
 
 pub mod app_paths;
 pub mod credentials;
+pub mod drafts;
 pub mod error;
 pub mod json_store;
 pub mod library;

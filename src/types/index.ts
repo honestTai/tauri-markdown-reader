@@ -152,3 +152,44 @@ export interface AgentRunArgs {
   forcedSkill?: string;
   documentId?: string;
 }
+
+// ============ Agent 写回草稿（阶段 5） ============
+
+/** 草稿模式（对齐 Rust DraftMode） */
+export type DraftMode =
+  | "wholeDocument"
+  | "selectedText"
+  | "searchReplace"
+  | "create";
+
+/** 解析后的草稿（对齐 Rust ResolvedDraft） */
+export interface ResolvedDraft {
+  id: string;
+  mode: DraftMode;
+  documentId?: string;
+  title?: string;
+  content: string;
+  missingSearches: string[];
+  replacementCount: number;
+  canApply: boolean;
+  note?: string;
+}
+
+/** propose_agent_draft 入参 */
+export interface ProposeAgentDraftArgs {
+  draftId: string;
+}
+
+/** apply_agent_draft 返回 */
+export interface ApplyDraftResult {
+  applied: boolean;
+  mode: DraftMode;
+  documentId?: string;
+  path?: string;
+  backupVersionId?: string;
+}
+
+/** discard_agent_draft 返回 */
+export interface DiscardDraftResult {
+  discarded: boolean;
+}

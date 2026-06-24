@@ -98,6 +98,15 @@ impl AppPaths {
         self.root.join("index.db")
     }
 
+    /// 工作区内的版本快照目录（相对工作区根，对齐 iOS .flowmark/versions/）
+    ///
+    /// 注意：这是相对路径字符串（<workspace_root>/.flowmark/versions），
+    /// apply_agent_draft 会拼绝对路径再 create_dir_all。
+    /// 不放在 AppData 下，因为版本快照属于"工作区数据"，要随工作区走。
+    pub fn versions_rel_dir() -> &'static str {
+        ".flowmark/versions"
+    }
+
     /// 确保所有子目录存在（启动时调用一次）
     pub fn ensure_dirs(&self) -> AppResult<()> {
         for dir in [
