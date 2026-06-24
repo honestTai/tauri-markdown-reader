@@ -98,6 +98,34 @@ impl AppPaths {
         self.root.join("index.db")
     }
 
+    /// skills 子目录（用户上传 / 自定义 skill）
+    ///
+    /// 结构：
+    ///   skills/
+    ///     <skill_name>/
+    ///       skill.md          （声明式 skill，frontmatter + 正文）
+    ///       assets/...         （可选：附带资源）
+    ///     <skill_name>.md      （单文件 skill 也允许）
+    pub fn skills_dir(&self) -> PathBuf {
+        self.root.join("skills")
+    }
+
+    /// 内置 skill 资源目录（随安装包分发，只读）
+    ///
+    /// dev 模式下指向 src-tauri/resources/built-in-skills/
+    /// release 模式下指向 resource_dir/resources/built-in-skills/
+    pub fn built_in_skills_dir(&self) -> PathBuf {
+        if cfg!(debug_assertions) {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("resources")
+                .join("built-in-skills")
+        } else {
+            // release：与 flowmark-agent.cjs 同级的 built-in-skills/
+            // 调用方需注入 resource_dir 后拼接，这里返回相对占位
+            PathBuf::from("resources/built-in-skills")
+        }
+    }
+
     /// 工作区内的版本快照目录（相对工作区根，对齐 iOS .flowmark/versions/）
     ///
     /// 注意：这是相对路径字符串（<workspace_root>/.flowmark/versions），
@@ -114,6 +142,7 @@ impl AppPaths {
             &self.agent_dir(),
             &self.threads_dir(),
             &self.memory_dir(),
+            &self.skills_dir(),
         ] {
             if !dir.exists() {
                 std::fs::create_dir_all(dir)?;

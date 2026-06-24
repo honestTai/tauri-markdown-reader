@@ -193,3 +193,23 @@ export interface ApplyDraftResult {
 export interface DiscardDraftResult {
   discarded: boolean;
 }
+
+// ============ 阶段 7：Skill 体系 ============
+
+/** Skill 来源 */
+export type SkillSource = "builtIn" | "user";
+
+/** Skill 描述符（对齐 Rust 侧 SkillDescriptor） */
+export interface SkillDescriptor {
+  name: string;
+  description: string;
+  source: SkillSource;
+  profile?: string;
+  slash?: string;
+  intentKeywords: string[];
+  tools: string[];
+  /** skill 正文（systemPrompt 附加）。列表接口可能为空，load_skill 才有 */
+  body?: string;
+  path?: string;
+  updatedAt?: number;
+}

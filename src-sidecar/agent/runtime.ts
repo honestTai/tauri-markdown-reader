@@ -30,6 +30,7 @@ import type {
 } from "./types.js";
 import { route } from "./router.js";
 import { createAgentTools } from "./tools.js";
+import { fetchSkillList, fetchSkillBody, routeByUserSkills } from "./skill_resolver.js";
 import type { AIMessageChunk } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
@@ -101,25 +102,62 @@ export async function runAgent(ctx: RunContext): Promise<void> {
   const { params, gateway, emit, signal, backend } = ctx;
   const profile = params.profile ?? "general";
 
-  // 1. 路由
-  const r = route(params.input, profile, params.forcedSkill);
+  // 0. 拉取用户 skill 列表（阶段 7）
+  //    失败 / 空都退化为内置路由
+  const userSkills = await fetchSkillList(backend);
+
+  // 1. 路由：先试用户 skill，再退化到内置 router
+  //    forcedSkill 在阶段 7 既可能是内置 AgentSkill，也可能是用户 skill name
+  //    用户 skill 命中时，skill 字段返回用户 skill name（runtime 会从 body 取 prompt）
+  let skill: string = params.forcedSkill ?? "chat";
+  let routedBy: "forced" | "slash" | "intent" | "default" | "override" = "default";
+  let text = params.input;
+
+  const userHit = routeByUserSkills(params.input, userSkills, params.forcedSkill);
+  if (userHit) {
+    skill = userHit.name;
+    routedBy = userHit.routedBy;
+    text = userHit.text;
+  } else {
+    // 退化到内置 router（forcedSkill 传枚举值）
+    const r = route(params.input, profile, params.forcedSkill);
+    skill = r.skill;
+    routedBy = r.routedBy;
+    text = r.text;
+  }
+
   emit({
     type: "metadata",
     runId: params.runId,
-    skill: r.skill,
-    routedBy: r.routedBy,
+    skill: skill as AgentSkill,
+    routedBy,
   });
 
-  // 2. 系统 prompt
-  const skillExtra = SKILL_PROMPTS[r.skill] ?? "";
-  const sysBase = SYSTEM_PROMPTS[profile];
-  const systemPrompt = skillExtra ? `${sysBase}\n\n${skillExtra}` : sysBase;
+  // 2. 系统 prompt：
+  //    - 若命中用户 skill，从 body 取 systemPrompt（fetchSkillBody）
+  //    - 否则用内置 SYSTEM_PROMPTS + SKILL_PROMPTS
+  let systemPrompt: string;
+  const userSkill = userSkills.find((s) => s.name === skill);
+  if (userSkill) {
+    const body = await fetchSkillBody(backend, skill);
+    const sysBase = SYSTEM_PROMPTS[profile];
+    systemPrompt = body ? `${sysBase}\n\n${body}` : sysBase;
+  } else {
+    const skillExtra = SKILL_PROMPTS[skill as AgentSkill] ?? "";
+    const sysBase = SYSTEM_PROMPTS[profile];
+    systemPrompt = skillExtra ? `${sysBase}\n\n${skillExtra}` : sysBase;
+  }
 
   // 3. 构造 tools + 初始消息
-  const tools: StructuredToolInterface[] = createAgentTools(backend);
+  //    若用户 skill 声明了 tools 白名单，按白名单过滤
+  let tools: StructuredToolInterface[] = createAgentTools(backend);
+  if (userSkill && userSkill.tools.length > 0) {
+    const allow = new Set(userSkill.tools);
+    tools = tools.filter((t) => allow.has(t.name));
+  }
   const messages: LoopMessage[] = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: r.text },
+    { role: "user", content: text },
   ];
 
   let finalText = "";

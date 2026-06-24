@@ -16,11 +16,12 @@
 
 use crate::models::{
     AgentSession, LibraryState, ModelConfiguration, OperationKind, OperationRecord,
+    SkillDescriptor,
 };
 use crate::store::longform_memory::{DocumentMemory, MemoryFragment};
 use crate::store::{
     AppPaths, LibraryRepository, LongformMemoryRepository, ModelConfigRepository,
-    OperationHistoryRepository, SessionRepository,
+    OperationHistoryRepository, SessionRepository, SkillRepository,
 };
 use crate::store::{AppError, AppResult};
 use crate::index::{IndexRepository, IndexStats, SearchHit};
@@ -51,6 +52,17 @@ fn model_config_repo(state: &tauri::State<AppState>) -> ModelConfigRepository {
 fn memory_repo(state: &tauri::State<AppState>) -> LongformMemoryRepository {
     LongformMemoryRepository::new(state.paths.clone())
 }
+
+fn skill_repo(state: &tauri::State<AppState>) -> SkillRepository {
+    SkillRepository::new(state.paths.clone())
+}
+
+/// AppState 额外持有 release 模式下的 resource_dir（用于定位内置 skill）
+///
+/// lib.rs setup 时注入：dev 模式为 None（走 CARGO_MANIFEST_DIR），
+/// release 模式为 app.path().resource_dir()
+#[derive(Debug, Clone, Default)]
+pub struct ResourceDir(pub Option<std::path::PathBuf>);
 
 // ============ Library 命令 ============
 
@@ -855,6 +867,26 @@ pub fn dispatch_tool_call(
                 "canApply": can_apply,
             }))
         }
+
+        // ============ 阶段 7：skill 查询（sidecar 内部用，非 LLM 工具）============
+        //
+        // sidecar 的 skill_resolver 通过这两个内部 tool 名拉取 skill 列表 / body。
+        // 不暴露给 LLM（createAgentTools 不含这两个）。
+        "__list_skills" => {
+            let repo = SkillRepository::new(paths.clone());
+            let list = repo.list(None)?;
+            Ok(serde_json::to_value(list)?)
+        }
+        "__load_skill" => {
+            let name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| AppError::InvalidArgument("__load_skill 缺少 name".into()))?;
+            let repo = SkillRepository::new(paths.clone());
+            let desc = repo.load(name, None)?;
+            Ok(serde_json::to_value(desc)?)
+        }
+
         other => Err(AppError::InvalidArgument(format!("未知工具: {other}"))),
     }
 }
@@ -893,4 +925,78 @@ use crate::store::AppResult as _AppResultAlias;
 #[allow(dead_code)]
 fn _suppress_unused() -> AppError {
     AppError::NotFound("placeholder".into())
+}
+
+// ============ Skill 命令（阶段 7）============
+//
+// 用户自定义 skill 管理：
+//   - list_skills：列出内置 + 用户 skill（不含 body，列表展示用）
+//   - load_skill：读单个 skill 完整内容（含 body，sidecar 路由用）
+//   - save_skill：写入 / 覆盖用户 skill（单文件）
+//   - delete_skill：删除用户 skill（内置不可删）
+//   - import_skill_file：从任意路径导入 .md skill
+//   - import_skill_folder：从任意路径导入 skill 文件夹（含 skill.md）
+//
+// 内置 skill 目录定位：
+//   - dev：src-tauri/resources/built-in-skills/
+//   - release：resource_dir/resources/built-in-skills/
+//   - lib.rs setup 时把 resource_dir 注入到 Tauri State（ResourceDir）
+
+/// 列出所有 skill（built-in + user）
+#[tauri::command]
+pub fn list_skills(
+    state: tauri::State<AppState>,
+    resource: tauri::State<'_, ResourceDir>,
+) -> AppResult<Vec<SkillDescriptor>> {
+    skill_repo(&state).list(resource.0.as_deref())
+}
+
+/// 读取单个 skill 完整内容（含 body）
+#[tauri::command]
+pub fn load_skill(
+    state: tauri::State<AppState>,
+    resource: tauri::State<'_, ResourceDir>,
+    name: String,
+) -> AppResult<SkillDescriptor> {
+    skill_repo(&state).load(&name, resource.0.as_deref())
+}
+
+/// 写入 / 覆盖用户 skill（单文件形式）
+///
+/// content 是完整 md（含 frontmatter）。name 仅用于文件名兜底，
+/// 实际 skill 名以 frontmatter.name 为准（没有则用 name）。
+#[tauri::command]
+pub fn save_skill(
+    state: tauri::State<AppState>,
+    name: String,
+    content: String,
+) -> AppResult<SkillDescriptor> {
+    skill_repo(&state).save_user_skill(&name, &content)
+}
+
+/// 删除用户 skill（内置 skill 不可删，返回错误）
+#[tauri::command]
+pub fn delete_skill(
+    state: tauri::State<AppState>,
+    name: String,
+) -> AppResult<()> {
+    skill_repo(&state).delete_user_skill(&name)
+}
+
+/// 从任意路径导入 skill 文件（.md）
+#[tauri::command]
+pub fn import_skill_file(
+    state: tauri::State<AppState>,
+    path: String,
+) -> AppResult<SkillDescriptor> {
+    skill_repo(&state).import_skill_file(&path)
+}
+
+/// 从任意路径导入 skill 文件夹（需含 skill.md）
+#[tauri::command]
+pub fn import_skill_folder(
+    state: tauri::State<AppState>,
+    path: String,
+) -> AppResult<SkillDescriptor> {
+    skill_repo(&state).import_skill_folder(&path)
 }

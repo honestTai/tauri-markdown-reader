@@ -156,3 +156,24 @@ body {
 .markdown-body blockquote { border-left: 3px solid var(--border); margin: 8px 0; padding: 4px 12px; color: var(--muted); }
 .markdown-body img.plantuml-img { max-width: 100%; }
 .markdown-body .diagram-error { color: var(--danger); }
+
+/* ============ Skills 管理（阶段 7） ============ */
+.skills-toolbar { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.skills-toolbar button { padding: 4px 8px; font-size: 12px; }
+.skills-list { list-style: none; margin: 8px 0; padding: 0; }
+.skill-item { padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 4px; }
+.skill-head { display: flex; align-items: center; gap: 6px; }
+.skill-head strong { font-size: 13px; }
+.skill-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+.skill-builtIn { background: var(--border); color: var(--fg); }
+.skill-user { background: var(--accent); color: white; }
+.skill-desc { font-size: 12px; margin: 0; }
+.skill-actions { display: flex; gap: 4px; }
+.skill-actions button { padding: 2px 6px; font-size: 12px; border: 1px solid var(--border); background: none; color: var(--fg); border-radius: 3px; cursor: pointer; }
+.skill-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+.skill-editor { margin-top: 12px; padding: 8px; border: 1px solid var(--accent); border-radius: 4px; }
+.skill-editor h4 { margin: 0 0 8px; font-size: 13px; }
+.skill-editor label { display: flex; flex-direction: column; margin-bottom: 8px; }
+.skill-editor textarea { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; padding: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: 4px; }
+.skill-editor-actions { display: flex; gap: 4px; }
+.skill-editor-actions button { padding: 4px 12px; }

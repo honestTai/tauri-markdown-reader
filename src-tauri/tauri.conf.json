@@ -35,7 +35,7 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "resources": ["resources/flowmark-agent.cjs"],
+    "resources": ["resources/flowmark-agent.cjs", "resources/built-in-skills/"],
     "externalBin": []
   }
 }

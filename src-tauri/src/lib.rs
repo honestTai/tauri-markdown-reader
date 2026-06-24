@@ -82,6 +82,19 @@ pub fn run() {
             };
             app.manage(app_state);
 
+            // 注入 resource_dir（release 模式下定位内置 skill 用）
+            // dev 模式 SkillRepository 走 CARGO_MANIFEST_DIR，传 None 即可
+            let resource_dir = if cfg!(debug_assertions) {
+                commands::ResourceDir(None)
+            } else {
+                let rd = app
+                    .path()
+                    .resource_dir()
+                    .map_err(|e| format!("无法定位 resource_dir: {e}"))?;
+                commands::ResourceDir(Some(rd))
+            };
+            app.manage(resource_dir);
+
             // 决定 sidecar 脚本路径
             let script_path = if cfg!(debug_assertions) {
                 "resources/flowmark-agent.cjs".to_string()
@@ -177,7 +190,14 @@ pub fn run() {
             // 阶段 5：agent 草稿写回
             commands::propose_agent_draft,
             commands::apply_agent_draft,
-            commands::discard_agent_draft
+            commands::discard_agent_draft,
+            // 阶段 7：skill 管理
+            commands::list_skills,
+            commands::load_skill,
+            commands::save_skill,
+            commands::delete_skill,
+            commands::import_skill_file,
+            commands::import_skill_folder
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

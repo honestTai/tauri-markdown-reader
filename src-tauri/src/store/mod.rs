@@ -20,6 +20,7 @@ pub mod operation_history;
 pub mod sessions;
 pub mod model_config;
 pub mod longform_memory;
+pub mod skills;
 
 pub use app_paths::AppPaths;
 pub use error::{AppError, AppResult};
@@ -28,3 +29,4 @@ pub use operation_history::OperationHistoryRepository;
 pub use sessions::SessionRepository;
 pub use model_config::ModelConfigRepository;
 pub use longform_memory::LongformMemoryRepository;
+pub use skills::SkillRepository;

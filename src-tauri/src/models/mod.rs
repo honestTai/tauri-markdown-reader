@@ -13,7 +13,9 @@
 pub mod agent;
 pub mod document;
 pub mod operation;
+pub mod skill;
 
 pub use agent::*;
 pub use document::*;
 pub use operation::*;
+pub use skill::*;

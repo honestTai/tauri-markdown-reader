@@ -35,9 +35,19 @@ function makeParams(over: Partial<AgentRunParams> = {}): AgentRunParams {
   };
 }
 
-/** mock backend：Preview 模式下不应被调用，断言用 */
+/** mock backend：Preview 模式下不应被调用，断言用
+ *
+ * 阶段 7：runAgent 启动时会调 __list_skills 拉取用户 skill 列表。
+ * 若未命中用户 skill 且 forcedSkill 是内置枚举，还会调 __load_skill 拿 body（命中用户 skill 才调）。
+ * 测试里默认不模拟用户 skill，所以 __list_skills 返回空数组即可；
+ * Preview 模式下不会调 __load_skill（因为没命中用户 skill）。
+ */
 function makeBackend(): ToolBackend & { calls: Mock } {
-  const calls = vi.fn().mockResolvedValue({ ok: true });
+  const calls = vi.fn(async (name: string) => {
+    if (name === "__list_skills") return [];
+    if (name === "__load_skill") return { name: "", body: "" };
+    return { ok: true };
+  });
   return {
     calls,
     call: calls,
@@ -137,7 +147,7 @@ describe("runAgent - 取消", () => {
 });
 
 describe("runAgent - Preview 不触发工具", () => {
-  it("Preview 模式下 backend.call 不被调用", async () => {
+  it("Preview 模式下 backend.call 不被调用（除 __list_skills 拉取用户 skill）", async () => {
     const backend = makeBackend();
     await runAgent({
       params: makeParams(),
@@ -146,7 +156,10 @@ describe("runAgent - Preview 不触发工具", () => {
       signal: new AbortController().signal,
       backend,
     });
-    expect(backend.calls).not.toHaveBeenCalled();
+    // 阶段 7：runAgent 启动时会调 __list_skills 拉取用户 skill 列表
+    // 但 Preview 模式不命中用户 skill，所以不会调 __load_skill，也不会调任何 LLM 工具
+    expect(backend.calls).toHaveBeenCalledTimes(1);
+    expect(backend.calls).toHaveBeenCalledWith("__list_skills", {});
   });
 });
 
@@ -186,6 +199,8 @@ describe("runAgent - 工具调用循环", () => {
   it("模型产出 tool_calls → 调 backend → emit tool_call/tool_result → 下一轮 done", async () => {
     const backend = makeBackend();
     // 让 backend 对 document_search 返回固定 hits
+    // （__list_skills 在 runAgent 启动时会被先调，返回空数组）
+    backend.calls.mockResolvedValueOnce([]); // __list_skills
     backend.calls.mockResolvedValueOnce({
       hits: [
         { documentId: "d1", chunkId: "d1-0", heading: "H", snippet: "S", score: 1 },
@@ -225,8 +240,8 @@ describe("runAgent - 工具调用循环", () => {
     expect(types).toContain("tool_result");
     expect(types[types.length - 1]).toBe("done");
 
-    // backend 被调一次
-    expect(backend.calls).toHaveBeenCalledTimes(1);
+    // backend 被调两次：__list_skills + document_search
+    expect(backend.calls).toHaveBeenCalledTimes(2);
     expect(backend.calls).toHaveBeenCalledWith("document_search", { query: "react", limit: 5 });
 
     // done 事件的 sources 来自 document_search 的 hits
@@ -241,8 +256,12 @@ describe("runAgent - 工具调用循环", () => {
 
   it("MAX_STEPS 限制循环次数（避免无限 tool_calls）", async () => {
     const backend = makeBackend();
-    // backend 每次都返回空，模型每次都要工具
-    backend.calls.mockResolvedValue({ hits: [] });
+    // backend：__list_skills 返回空，document_search 返回空 hits
+    backend.calls.mockImplementation(async (name: string) => {
+      if (name === "__list_skills") return [];
+      if (name === "__load_skill") return { name: "", body: "" };
+      return { hits: [] };
+    });
 
     // 每一轮模型都要 document_search，永不 stop
     const endlessStep: GatewayChunkEvent[] = [
