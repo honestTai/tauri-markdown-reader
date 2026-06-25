@@ -12,6 +12,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "build:sidecar": "node scripts/build-sidecar.cjs",
+    "build:converter": "node scripts/build-converter.cjs",
+    "build:pkg": "pnpm build:sidecar && pnpm build:converter",
     "test": "vitest run --config vitest.config.ts && cd src-sidecar && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -21,6 +23,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",

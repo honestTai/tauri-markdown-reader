@@ -11,6 +11,14 @@ dist-ssr/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/resources/flowmark-agent.cjs
+src-tauri/resources/flowmark-converter.exe
+
+# Python
+flowmark-converter/__pycache__/
+flowmark-converter/parsers/__pycache__/
+flowmark-converter/exporters/__pycache__/
+flowmark-converter/tests/__pycache__/
+.pyinstaller-build/
 
 # Sidecar build output
 src-sidecar/dist/

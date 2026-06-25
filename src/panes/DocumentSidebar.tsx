@@ -2,12 +2,13 @@
  * 左侧文档树侧栏(阶段 6.1)
  *
  * 对齐 iOS MacDocumentSidebar:
- *   - 工作区选择 / 新建文档 / 导入全部
+ *   - 工作区选择 / 新建文档 / 导入全部 / 导入 Word / 导入 PDF
  *   - 文档列表(置顶 + 收藏 + 全部过滤)
  *   - 搜索框(本地子串过滤,前端做)
  *   - 文档项:点击选中,star/unstar,删除
  */
 import { useMemo, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { UseLibrary } from "../hooks/useLibrary.js";
 import type { UseLanguage } from "../hooks/useLanguage.js";
 import type { MarkdownDocument } from "../types/index.js";
@@ -49,6 +50,26 @@ export function DocumentSidebar({ lib, lang }: Props) {
     }
   };
 
+  const handleImportDocx = async () => {
+    const selected = await open({
+      filters: [{ name: "Word 文档", extensions: ["docx"] }],
+      multiple: false,
+    });
+    if (selected && lib.library) {
+      await lib.importDocx(selected as string);
+    }
+  };
+
+  const handleImportPdf = async () => {
+    const selected = await open({
+      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      multiple: false,
+    });
+    if (selected && lib.library) {
+      await lib.importPdf(selected as string);
+    }
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -57,6 +78,8 @@ export function DocumentSidebar({ lib, lang }: Props) {
           <button onClick={handlePickWorkspace} title={t("library.pickWorkspace")}>📁</button>
           <button onClick={() => lib.createDocument(t("library.untitled"))} title={t("library.newDocument")}>＋</button>
           <button onClick={() => lib.importAll()} title={t("library.importAll")}>⇪</button>
+          <button onClick={handleImportDocx} title={t("library.importDocx")} className="import-btn">📄W</button>
+          <button onClick={handleImportPdf} title={t("library.importPdf")} className="import-btn">📄P</button>
         </div>
       </div>
 
@@ -113,10 +136,46 @@ function DocItem({
   onDelete: () => void;
   t: (k: string) => string;
 }) {
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 显示自定义右键菜单
+    const menu = document.createElement("div");
+    menu.className = "context-menu";
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    menu.innerHTML = `
+      <button class="ctx-menu-item">${doc.starred ? t("reader.unstar") : t("reader.star")}</button>
+      <button class="ctx-menu-item danger">${t("library.delete")}</button>
+    `;
+    menu.querySelectorAll("button")[0]?.addEventListener("click", () => {
+      onToggleStar();
+      menu.remove();
+    });
+    menu.querySelectorAll("button")[1]?.addEventListener("click", () => {
+      if (window.confirm(t("library.confirmDelete"))) {
+        onDelete();
+      }
+      menu.remove();
+    });
+    document.body.appendChild(menu);
+    // 点击其他地方关闭
+    const closeMenu = (ev: MouseEvent) => {
+      if (!menu.contains(ev.target as Node)) {
+        menu.remove();
+        document.removeEventListener("click", closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener("click", closeMenu), 0);
+  };
+
   return (
-    <li className={`doc-item ${active ? "active" : ""}`} onClick={onSelect}>
+    <li
+      className={`doc-item ${active ? "active" : ""}`}
+      onClick={onSelect}
+      onContextMenu={handleContextMenu}
+    >
       <div className="doc-item-main">
-        <span className="doc-title">{doc.pinned ? "📌 " : ""}{doc.title || t("library.untitled")}</span>
+        <span className="doc-title">{doc.pinned ? "📌 " : ""}{doc.starred ? "★ " : ""}{doc.title || t("library.untitled")}</span>
         <span className="doc-path muted">{doc.path}</span>
       </div>
       <div className="doc-item-actions" onClick={(e) => e.stopPropagation()}>

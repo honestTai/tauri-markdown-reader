@@ -7,12 +7,14 @@
 //! 阶段 4 Part 2：agent.run / agent.cancel Tauri 命令 + sidecar 异步事件转发
 
 mod commands;
+mod converter;
 mod index;
 mod models;
 mod sidecar;
 mod store;
 
 use crate::commands::AppState;
+use converter::ConverterHandle;
 use sidecar::{SidecarError, SidecarHandle, ToolDispatcherRegistry};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -71,6 +73,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 初始化 AppPaths + 确保数据目录存在
             let app_state = match AppState::system() {
@@ -110,30 +113,119 @@ pub fn run() {
                     .to_string()
             };
 
-            match SidecarHandle::spawn(app.handle().clone(), &script_path) {
-                Ok(handle) => {
-                    // 注入反向 tool.call 派发器（持有 AppPaths 副本）
-                    let paths = app
-                        .state::<AppState>()
-                        .paths
-                        .clone();
-                    handle.bus().set_tool_dispatcher(Arc::new(
-                        ToolDispatcherRegistry::new(paths),
-                    ));
-                    app.manage(SidecarState(Mutex::new(Some(handle))));
-                    log::info!("sidecar 初始化完成");
-                }
-                Err(e) => {
-                    log::error!("sidecar 启动失败: {e}");
-                    app.manage(SidecarState(Mutex::new(None)));
-                }
+            // 预注入空状态，防止前端访问时 panic
+            app.manage(SidecarState(Mutex::new(None)));
+            app.manage(converter::ConverterState(Mutex::new(None)));
+
+            // 后台启动 Node sidecar（不阻塞窗口显示）
+            {
+                let app_handle = app.handle().clone();
+                let paths = app.state::<AppState>().paths.clone();
+                let script = script_path;
+                std::thread::spawn(move || {
+                    match SidecarHandle::spawn(app_handle.clone(), &script) {
+                        Ok(handle) => {
+                            handle.bus().set_tool_dispatcher(Arc::new(
+                                ToolDispatcherRegistry::new(paths),
+                            ));
+                            let h = app_handle.clone();
+                            let _ = h.run_on_main_thread({
+                                let h2 = h.clone();
+                                move || {
+                                    if let Some(state) = h2.try_state::<SidecarState>() {
+                                        if let Ok(mut guard) = state.0.lock() {
+                                            *guard = Some(handle);
+                                        }
+                                    }
+                                    log::info!("Node sidecar 初始化完成");
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            log::error!("Node sidecar 启动失败: {e}");
+                        }
+                    }
+                });
             }
+
+            // 后台启动 Python 转换器（PyInstaller exe 解压慢，不阻塞窗口）
+            {
+                let app_handle = app.handle().clone();
+                // 提前在 setup 线程计算 release 模式下的 exe 路径
+                let converter_exe_path = if cfg!(debug_assertions) {
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .parent()
+                        .map(|p| p.join("flowmark-converter").join("main.py"))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string()
+                } else {
+                    app.path()
+                        .resource_dir()
+                        .map(|rd| rd.join("resources").join("flowmark-converter.exe"))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string()
+                };
+
+                std::thread::spawn(move || {
+                    let converter_result = if cfg!(debug_assertions) {
+                        ConverterHandle::spawn("python", &converter_exe_path)
+                    } else {
+                        ConverterHandle::spawn_exe(&converter_exe_path)
+                    };
+
+                    match converter_result {
+                        Ok(handle) => {
+                            match handle.ping() {
+                                Ok(resp) => {
+                                    log::info!(
+                                        "Python 转换器就绪: {}",
+                                        resp.get("pythonVersion")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("unknown")
+                                    );
+                                    let h = app_handle.clone();
+                                    let _ = h.run_on_main_thread({
+                                        let h2 = h.clone();
+                                        move || {
+                                            if let Some(state) = h2.try_state::<converter::ConverterState>() {
+                                                if let Ok(mut guard) = state.0.lock() {
+                                                    *guard = Some(handle);
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                                Err(e) => {
+                                    log::error!("Python 转换器 ping 失败: {e}");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Python 转换器启动失败: {e}");
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(state) = window.app_handle().try_state::<SidecarState>() {
                     cleanup_sidecar(&state);
+                }
+                // 清理 Python 转换器
+                if let Some(conv_state) = window
+                    .app_handle()
+                    .try_state::<converter::ConverterState>()
+                {
+                    if let Ok(mut guard) = conv_state.0.lock() {
+                        if let Some(handle) = guard.take() {
+                            handle.kill();
+                        }
+                    }
                 }
             }
         })
@@ -197,7 +289,13 @@ pub fn run() {
             commands::save_skill,
             commands::delete_skill,
             commands::import_skill_file,
-            commands::import_skill_folder
+            commands::import_skill_folder,
+            // 阶段 7 Part 2：Word/PDF 导入
+            commands::import_docx_file,
+            commands::import_pdf_file,
+            // 阶段 7 Part 3：Markdown 导出
+            commands::export_to_docx,
+            commands::export_to_pdf
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

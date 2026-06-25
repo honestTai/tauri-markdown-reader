@@ -199,6 +199,32 @@ export interface DiscardDraftResult {
 /** Skill 来源 */
 export type SkillSource = "builtIn" | "user";
 
+// ============ 阶段 7 Part 2：文档导入 ============
+
+/** 转换器状态 */
+export interface ConverterStatus {
+  available: boolean;
+  pythonVersion?: string;
+  converterVersion?: string;
+}
+
+/** 导入参数 */
+export interface ImportDocxArgs {
+  path: string;
+}
+
+export interface ImportPdfArgs {
+  path: string;
+}
+
+/** 导出参数 */
+export interface ExportArgs {
+  markdown: string;
+  outputPath: string;
+}
+
+// ============ 阶段 7：Skill 体系 ============
+
 /** Skill 描述符（对齐 Rust 侧 SkillDescriptor） */
 export interface SkillDescriptor {
   name: string;

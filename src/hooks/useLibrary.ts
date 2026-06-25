@@ -23,6 +23,10 @@ export interface UseLibrary {
   refresh: () => Promise<void>;
   pickWorkspace: (root: string) => Promise<void>;
   importAll: () => Promise<void>;
+  importDocx: (path: string) => Promise<void>;
+  importPdf: (path: string) => Promise<void>;
+  exportDocx: (outputPath: string) => Promise<void>;
+  exportPdf: (outputPath: string) => Promise<void>;
   createDocument: (title: string) => Promise<MarkdownDocument | null>;
   selectDocument: (docId: string) => Promise<void>;
   saveActiveContent: (content: string) => Promise<void>;
@@ -151,6 +155,78 @@ export function useLibrary(): UseLibrary {
     await loadContent(lib, docId);
   }, [library, loadContent]);
 
+  const importDocx = useCallback(async (path: string) => {
+    if (!library) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const lib = await invoke<LibraryState>("import_docx_file", {
+        library,
+        path,
+      });
+      setLibrary(lib);
+      // 选中新导入的文档
+      const imported = lib.documents[lib.documents.length - 1];
+      if (imported) {
+        setLibrary({ ...lib, activeDocumentId: imported.id });
+        await loadContent({ ...lib, activeDocumentId: imported.id }, imported.id);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [library, loadContent]);
+
+  const importPdf = useCallback(async (path: string) => {
+    if (!library) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const lib = await invoke<LibraryState>("import_pdf_file", {
+        library,
+        path,
+      });
+      setLibrary(lib);
+      // 选中新导入的文档
+      const imported = lib.documents[lib.documents.length - 1];
+      if (imported) {
+        setLibrary({ ...lib, activeDocumentId: imported.id });
+        await loadContent({ ...lib, activeDocumentId: imported.id }, imported.id);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [library, loadContent]);
+
+  const exportDocx = useCallback(async (outputPath: string) => {
+    if (!library || !activeContent) return;
+    setError(null);
+    try {
+      await invoke<string>("export_to_docx", {
+        markdown: activeContent,
+        outputPath,
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [library, activeContent]);
+
+  const exportPdf = useCallback(async (outputPath: string) => {
+    if (!library || !activeContent) return;
+    setError(null);
+    try {
+      await invoke<string>("export_to_pdf", {
+        markdown: activeContent,
+        outputPath,
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [library, activeContent]);
+
   return {
     library,
     activeDoc,
@@ -160,6 +236,10 @@ export function useLibrary(): UseLibrary {
     refresh,
     pickWorkspace,
     importAll,
+    importDocx,
+    importPdf,
+    exportDocx,
+    exportPdf,
     createDocument,
     selectDocument,
     saveActiveContent,

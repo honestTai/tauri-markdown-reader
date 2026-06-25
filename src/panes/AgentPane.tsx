@@ -1,13 +1,11 @@
 /**
- * 右侧 Agent 面板(阶段 6.2)
+ * 右侧 Agent 面板 — 对齐 macOS MacAgentPane
  *
- * 对齐 iOS MacAgentPane:
- *   - 消息流(user / assistant)
- *   - 路由标签(AgentRoutedBy)
- *   - sources / toolCalls 折叠
- *   - 输入框 + run / stop / clear
- *   - skill 选择(LAUNCH_SKILLS)
- *   - 草稿预览(对接阶段 5 写回)
+ * - 空状态快速建议（对齐 MacAgentEmptyState）
+ * - 消息气泡（iMessage 风格）
+ * - 输入框：Enter 发送，Shift+Enter 换行（对齐 macOS Cmd+Return）
+ * - skill chip 选择器
+ * - 草稿预览（阶段 5 写回）
  */
 import { useMemo, useState } from "react";
 import type { UseAgent } from "../hooks/useAgent.js";
@@ -23,12 +21,23 @@ interface Props {
   lib: UseLibrary;
 }
 
+/** 快速建议项（对齐 macOS MacAgentEmptyState） */
+const QUICK_PROMPTS: { labelKey: string; prompt: string; skill: AgentSkill }[] = [
+  { labelKey: "agent.task.rewrite", prompt: "请润色并改进这段文字", skill: "review" },
+  { labelKey: "agent.suggestion.summary", prompt: "请总结这篇文档的核心要点", skill: "understand" },
+  { labelKey: "agent.suggestion.actions", prompt: "根据这篇文档，接下来应该做什么？", skill: "followups" },
+  { labelKey: "agent.suggestion.html", prompt: "请帮我把这段内容做成一个美观的 HTML 页面", skill: "htmlAuthor" },
+  { labelKey: "agent.suggestion.chat", prompt: "聊聊这篇文档的内容", skill: "chat" },
+];
+
 export function AgentPane({ agent, lang, lib }: Props) {
   const { t } = lang;
   const [input, setInput] = useState("");
   const [forcedSkill, setForcedSkill] = useState<AgentSkill | undefined>(undefined);
   const [draft, setDraft] = useState<ResolvedDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
+
+  const canSend = !agent.running && input.trim().length > 0;
 
   const handleSubmit = async () => {
     const text = input.trim();
@@ -40,7 +49,25 @@ export function AgentPane({ agent, lang, lib }: Props) {
     });
   };
 
-  // 从最近一条 assistant 消息里捞 draftId(来自 tool_result)
+  // 快速建议（对齐 macOS quick prompt）
+  const handleQuickPrompt = async (prompt: string, skill: AgentSkill) => {
+    if (agent.running) return;
+    setForcedSkill(skill);
+    await agent.run(prompt, {
+      forcedSkill: skill,
+      documentId: lib.activeDoc?.id,
+    });
+  };
+
+  // 键盘处理：Enter 发送，Shift+Enter 换行
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend) handleSubmit();
+    }
+  };
+
+  // 从最近一条 assistant 消息里捞 draftId
   const lastDraftId = useMemo(() => {
     const last = agent.messages[agent.messages.length - 1];
     if (!last || last.role !== "assistant") return null;
@@ -57,9 +84,7 @@ export function AgentPane({ agent, lang, lib }: Props) {
       const d = await agent.proposeDraft(lastDraftId);
       setDraft(d);
       setDraftError(null);
-    } catch (e) {
-      setDraftError(String(e));
-    }
+    } catch (e) { setDraftError(String(e)); }
   };
 
   const handleApplyDraft = async () => {
@@ -68,9 +93,7 @@ export function AgentPane({ agent, lang, lib }: Props) {
       await agent.applyDraft(draft.id);
       setDraft(null);
       await lib.refresh();
-    } catch (e) {
-      setDraftError(String(e));
-    }
+    } catch (e) { setDraftError(String(e)); }
   };
 
   const handleDiscardDraft = async () => {
@@ -79,8 +102,11 @@ export function AgentPane({ agent, lang, lib }: Props) {
     setDraft(null);
   };
 
+  const isEmpty = agent.messages.length === 0 && !agent.running;
+
   return (
     <aside className="agent-pane">
+      {/* 头部 */}
       <div className="agent-header">
         <h2>{t("agent.title")}</h2>
         <div className="agent-skills">
@@ -96,14 +122,31 @@ export function AgentPane({ agent, lang, lib }: Props) {
         </div>
       </div>
 
+      {/* 消息区 */}
       <div className="agent-messages">
-        {agent.messages.length === 0 && <p className="muted">{t("agent.previewMode")}</p>}
+        {isEmpty && (
+          <div className="agent-empty">
+            <p className="agent-empty-title">{t("agent.emptyTitle") || "开始对话"}</p>
+            {QUICK_PROMPTS.map((qp) => (
+              <button
+                key={qp.labelKey}
+                className="quick-prompt-btn"
+                onClick={() => handleQuickPrompt(qp.prompt, qp.skill)}
+                disabled={agent.running}
+              >
+                <span className="quick-prompt-label">{t(qp.labelKey) || qp.labelKey}</span>
+                <span className="quick-prompt-text">{qp.prompt}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {agent.messages.map((m) => (
           <MessageRow key={m.id} m={m} lang={lang} />
         ))}
         {agent.error && <div className="agent-error">{agent.error}</div>}
       </div>
 
+      {/* 草稿预览 */}
       {draft && (
         <DraftPreview
           draft={draft}
@@ -120,27 +163,32 @@ export function AgentPane({ agent, lang, lib }: Props) {
         </button>
       )}
 
+      {/* 输入区（对齐 macOS composer） */}
       <div className="agent-input-row">
         <textarea
           className="agent-input"
           placeholder={t("agent.inputPlaceholder")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
+          onKeyDown={handleInputKeyDown}
           rows={3}
         />
         <div className="agent-input-actions">
+          <span className="agent-input-hint">
+            {agent.running ? "思考中..." : <><kbd>Enter</kbd> 发送 · <kbd>Shift+Enter</kbd> 换行</>}
+          </span>
           {agent.running ? (
-            <button onClick={agent.cancel} className="danger">{t("agent.stop")}</button>
+            <button onClick={agent.cancel} className="btn-stop">{t("agent.stop")}</button>
           ) : (
-            <button onClick={handleSubmit} disabled={!input.trim()}>{t("agent.run")}</button>
+            <>
+              <button onClick={agent.clear} className="btn-clear" disabled={agent.messages.length === 0}>
+                {t("agent.clear")}
+              </button>
+              <button onClick={handleSubmit} disabled={!canSend} className="btn-send">
+                {t("agent.run")}
+              </button>
+            </>
           )}
-          <button onClick={agent.clear}>{t("agent.clear")}</button>
         </div>
       </div>
     </aside>
@@ -150,19 +198,27 @@ export function AgentPane({ agent, lang, lib }: Props) {
 function MessageRow({ m, lang }: { m: import("../types/index.js").AgentMessage; lang: UseLanguage }) {
   const { t } = lang;
   const { html, containerRef } = useMarkdownRender(m.content);
+
   if (m.role === "user") {
-    return <div className="msg msg-user">{m.content}</div>;
+    return (
+      <div className="msg msg-user">
+        <div className="msg-content">{m.content}</div>
+      </div>
+    );
   }
+
   return (
     <div className="msg msg-assistant">
       <div className="msg-meta">
         {m.skill && <span className="tag tag-skill">{m.skill}</span>}
-        {m.routedBy && <span className="tag tag-route">{t(`agent.routedBy.${m.routedBy}`)}</span>}
+        {m.routedBy && <span className="tag">{t(`agent.routedBy.${m.routedBy}`)}</span>}
       </div>
-      <div ref={containerRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="msg-content">
+        <div ref={containerRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
+      </div>
       {m.sources && m.sources.length > 0 && (
         <details className="msg-sources">
-          <summary>{t("agent.sources")}({m.sources.length})</summary>
+          <summary>{t("agent.sources")} ({m.sources.length})</summary>
           <ul>
             {m.sources.map((s, i) => (
               <li key={i}>
@@ -176,14 +232,14 @@ function MessageRow({ m, lang }: { m: import("../types/index.js").AgentMessage; 
       )}
       {m.toolCalls && m.toolCalls.length > 0 && (
         <details className="msg-tools">
-          <summary>{t("agent.toolCalls")}({m.toolCalls.length})</summary>
+          <summary>{t("agent.toolCalls")} ({m.toolCalls.length})</summary>
           <ul>
             {m.toolCalls.map((tc, i) => (
               <li key={i}>
                 <strong>{tc.name}</strong>
-                <pre className="tool-args">{JSON.stringify(tc.arguments, null, 2)}</pre>
+                <div className="tool-args">{JSON.stringify(tc.arguments, null, 2)}</div>
                 {tc.result !== undefined && (
-                  <pre className="tool-result">{JSON.stringify(tc.result, null, 2)}</pre>
+                  <div className="tool-result">{JSON.stringify(tc.result, null, 2)}</div>
                 )}
               </li>
             ))}
@@ -206,7 +262,7 @@ function DraftPreview({
   const { html, containerRef } = useMarkdownRender(draft.content);
   return (
     <div className="draft-preview">
-      <h3>{t("agent.draft.title")}({draft.mode})</h3>
+      <h3>{t("agent.draft.title")} ({draft.mode})</h3>
       {!draft.canApply && (
         <div className="agent-error">
           {t("agent.draft.cannotApply", { count: draft.missingSearches.length })}
@@ -215,7 +271,7 @@ function DraftPreview({
       <div ref={containerRef} className="markdown-body draft-content" dangerouslySetInnerHTML={{ __html: html }} />
       <div className="draft-actions">
         <button onClick={onApply} disabled={!draft.canApply}>{t("agent.draft.apply")}</button>
-        <button onClick={onDiscard} className="danger">{t("agent.draft.discard")}</button>
+        <button onClick={onDiscard}>{t("agent.draft.discard")}</button>
       </div>
     </div>
   );

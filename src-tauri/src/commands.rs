@@ -1000,3 +1000,206 @@ pub fn import_skill_folder(
 ) -> AppResult<SkillDescriptor> {
     skill_repo(&state).import_skill_folder(&path)
 }
+
+// ============ 文档导入命令（阶段 7 Part 2） ============
+//
+// 调用 Python sidecar（flowmark-converter）将 Word/PDF 转为 Markdown，
+// 然后导入到文档库。
+//
+// 流程：
+//   1. 通过 ConverterState 获取 Python sidecar 句柄
+//   2. 发送 JSON-RPC convert.docx_to_md / convert.pdf_to_md
+//   3. 将返回的 Markdown 导入文档库（import_file / create_document）
+//   4. 可选：构建索引
+
+use crate::converter::ConverterState;
+
+/// 将 .docx 文件导入为 Markdown 文档
+///
+/// 入参 path：.docx 文件的绝对路径
+/// 返回更新后的 LibraryState
+#[tauri::command]
+pub fn import_docx_file(
+    state: tauri::State<AppState>,
+    converter_state: tauri::State<'_, ConverterState>,
+    mut library: LibraryState,
+    path: String,
+) -> Result<LibraryState, String> {
+    // 获取 API key 和 endpoint（用于 LLM vision 图片降级）
+    let mc_repo = ModelConfigRepository::new(state.paths.clone());
+    let api_key = mc_repo
+        .get_api_key()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let config = mc_repo.load().ok();
+    let endpoint = config.as_ref().map(|c| c.endpoint.as_str());
+
+    // 调用 Python 转换器
+    let markdown = {
+        let guard = converter_state
+            .0
+            .lock()
+            .map_err(|_| "转换器状态锁中毒".to_string())?;
+        let handle = guard
+            .as_ref()
+            .ok_or("Python 转换器未启动，请检查 Python 环境和依赖是否安装")?;
+
+        handle
+            .convert_docx(
+                &path,
+                if api_key.is_empty() { None } else { Some(&api_key) },
+                endpoint,
+            )
+            .map_err(|e| e.to_string())?
+            .markdown
+    };
+
+    // 从文件路径提取标题
+    let title = std::path::Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("导入的 Word 文档");
+
+    // 导入到文档库
+    let lib_repo = LibraryRepository::new(state.paths.clone());
+    let doc = lib_repo.create_document(&mut library, title, &markdown)
+        .map_err(|e| e.to_string())?;
+
+    // 构建索引
+    if let Ok(idx) = crate::index::IndexRepository::open(&state.paths) {
+        let _ = idx.upsert_document(
+            &doc.id,
+            Some(title),
+            &markdown,
+            doc.updated_at,
+        );
+    }
+
+    log::info!("已导入 Word 文档: {title} ({})", doc.id);
+    Ok(library)
+}
+
+/// 将 .pdf 文件导入为 Markdown 文档
+///
+/// 入参 path：.pdf 文件的绝对路径
+/// 返回更新后的 LibraryState
+#[tauri::command]
+pub fn import_pdf_file(
+    state: tauri::State<AppState>,
+    converter_state: tauri::State<'_, ConverterState>,
+    mut library: LibraryState,
+    path: String,
+) -> Result<LibraryState, String> {
+    // 获取 API key 和 endpoint
+    let mc_repo = ModelConfigRepository::new(state.paths.clone());
+    let api_key = mc_repo
+        .get_api_key()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let config = mc_repo.load().ok();
+    let endpoint = config.as_ref().map(|c| c.endpoint.as_str());
+
+    // 调用 Python 转换器
+    let markdown = {
+        let guard = converter_state
+            .0
+            .lock()
+            .map_err(|_| "转换器状态锁中毒".to_string())?;
+        let handle = guard
+            .as_ref()
+            .ok_or("Python 转换器未启动，请检查 Python 环境和依赖是否安装")?;
+
+        handle
+            .convert_pdf(
+                &path,
+                if api_key.is_empty() { None } else { Some(&api_key) },
+                endpoint,
+            )
+            .map_err(|e| e.to_string())?
+            .markdown
+    };
+
+    // 从文件路径提取标题
+    let title = std::path::Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("导入的 PDF 文档");
+
+    // 导入到文档库
+    let lib_repo = LibraryRepository::new(state.paths.clone());
+    let doc = lib_repo.create_document(&mut library, title, &markdown)
+        .map_err(|e| e.to_string())?;
+
+    // 构建索引
+    if let Ok(idx) = crate::index::IndexRepository::open(&state.paths) {
+        let _ = idx.upsert_document(
+            &doc.id,
+            Some(title),
+            &markdown,
+            doc.updated_at,
+        );
+    }
+
+    log::info!("已导入 PDF 文档: {title} ({})", doc.id);
+    Ok(library)
+}
+
+// ============ 文档导出命令（阶段 7 Part 3） ============
+//
+// 调用 Python sidecar 将 Markdown 转为 Word/PDF 文件。
+
+/// 导出 Markdown 为 .docx 文件
+///
+/// 入参:
+///   - markdown: Markdown 文本内容
+///   - output_path: 输出 .docx 文件的绝对路径
+#[tauri::command]
+pub fn export_to_docx(
+    converter_state: tauri::State<'_, ConverterState>,
+    markdown: String,
+    output_path: String,
+) -> Result<String, String> {
+    let guard = converter_state
+        .0
+        .lock()
+        .map_err(|_| "转换器状态锁中毒".to_string())?;
+    let handle = guard
+        .as_ref()
+        .ok_or("Python 转换器未启动")?;
+
+    let result = handle
+        .convert_md_to_docx(&markdown, &output_path)
+        .map_err(|e| e.to_string())?;
+
+    log::info!("已导出 Word 文档: {}", result.source_file);
+    Ok(result.source_file)
+}
+
+/// 导出 Markdown 为 .pdf 文件
+///
+/// 入参:
+///   - markdown: Markdown 文本内容
+///   - output_path: 输出 .pdf 文件的绝对路径
+#[tauri::command]
+pub fn export_to_pdf(
+    converter_state: tauri::State<'_, ConverterState>,
+    markdown: String,
+    output_path: String,
+) -> Result<String, String> {
+    let guard = converter_state
+        .0
+        .lock()
+        .map_err(|_| "转换器状态锁中毒".to_string())?;
+    let handle = guard
+        .as_ref()
+        .ok_or("Python 转换器未启动")?;
+
+    let result = handle
+        .convert_md_to_pdf(&markdown, &output_path)
+        .map_err(|e| e.to_string())?;
+
+    log::info!("已导出 PDF 文档: {}", result.source_file);
+    Ok(result.source_file)
+}

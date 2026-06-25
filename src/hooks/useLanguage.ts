@@ -6,6 +6,7 @@
 import { useCallback, useState } from "react";
 import {
   detectLanguage,
+  LANGUAGES,
   persistLanguage,
   translate,
   type AppLanguage,
@@ -15,6 +16,7 @@ export interface UseLanguage {
   lang: AppLanguage;
   t: (key: string, vars?: Record<string, string | number>) => string;
   setLang: (lang: AppLanguage) => void;
+  cycleLanguage: () => void;
 }
 
 export function useLanguage(): UseLanguage {
@@ -25,10 +27,16 @@ export function useLanguage(): UseLanguage {
     persistLanguage(next);
   }, []);
 
+  const cycleLanguage = useCallback(() => {
+    const idx = LANGUAGES.indexOf(lang);
+    const next = LANGUAGES[(idx + 1) % LANGUAGES.length];
+    setLang(next);
+  }, [lang, setLang]);
+
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => translate(lang, key, vars),
     [lang],
   );
 
-  return { lang, t, setLang };
+  return { lang, t, setLang, cycleLanguage };
 }
