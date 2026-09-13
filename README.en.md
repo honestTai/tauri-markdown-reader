@@ -1,14 +1,16 @@
+<div align="center">
+
 # Markdown Reader
 
-[中文](README.md) | **English**
+**Make project Markdown easy to find, read, and deliver.**
 
-[![Release](https://img.shields.io/github/v/release/honestTai/tauri-markdown-reader?label=release)](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
-[![License](https://img.shields.io/github/license/honestTai/tauri-markdown-reader)](LICENSE)
-[![Built with Tauri](https://img.shields.io/badge/Tauri-2.x-24c8db)](https://tauri.app/)
+[中文](README.md) · [English](README.en.md) · [App releases](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/home)
 
-A local-first Markdown document library for reading, organizing, importing, and exporting project docs.
+</div>
 
-Markdown Reader is not a cloud note app or a heavy IDE. It is a desktop document workbench: open a project folder or one Markdown file, then search README files, PRDs, meeting notes, troubleshooting records, technical plans, and delivery materials. Files stay on disk; the app focuses on reading, light editing, import conversion, and export.
+Open a local folder, search and read your docs, make light edits, and export to Word or PDF. Your files stay on disk.
+
+**Who it’s for:** Developers and teams working with READMEs, technical plans, product docs, and meeting notes.
 
 ## Demo
 
@@ -126,3 +128,13 @@ Chinese launch copy and asset references are in [docs/PROMOTION.md](docs/PROMOTI
 ## License
 
 This project is open-sourced under the MIT License. See [LICENSE](LICENSE).
+
+## Meet the author & HRouter
+
+I’m **honestTai**, the developer and operator behind [HRouter](https://hrouter.net/home). I share practical tools, reusable workflows, skills, and plugins on GitHub.
+
+This project does not require HRouter. If you also work with AI coding tools, explore my HRouter model-routing service.
+
+[Explore HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
+
+If this project helps your workflow, give it a star and share what you build. Feedback and feature ideas are welcome in Issues.

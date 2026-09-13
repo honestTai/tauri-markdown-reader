@@ -1,14 +1,21 @@
+<div align="center">
+
 # Markdown Reader
 
-**中文** | [English](README.en.md)
+**让散落在项目里的 Markdown，成为好找、好读、好交付的文档。**  
+**Make project Markdown easy to find, read, and deliver.**
 
-[![Release](https://img.shields.io/github/v/release/honestTai/tauri-markdown-reader?label=release)](https://github.com/honestTai/tauri-markdown-reader/releases/latest)
-[![License](https://img.shields.io/github/license/honestTai/tauri-markdown-reader)](LICENSE)
-[![Built with Tauri](https://img.shields.io/badge/Tauri-2.x-24c8db)](https://tauri.app/)
+[中文](README.md) · [English](README.en.md) · [下载应用 / App releases](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/home)
 
-一个本地优先的 Markdown 文档库，用来阅读、整理、导入和导出项目文档。
+</div>
 
-Markdown Reader 不是云端笔记，也不是重型 IDE。它更像一个桌面文档工作台：打开一个项目目录或单个 Markdown 文件，就能搜索 README、PRD、会议记录、排障笔记、技术方案和交付材料。文件仍然留在本地磁盘上，应用只负责阅读、轻编辑、导入转换和导出。
+打开本地目录，搜索与阅读文档，进行轻量编辑，再导出 Word 或 PDF。文件留在磁盘上，工作围绕你的项目展开。
+
+Open a local folder, search and read your docs, make light edits, and export to Word or PDF. Your files stay on disk.
+
+**适合谁 / Who it’s for**  
+经常阅读 README、技术方案、产品文档与会议笔记的开发者和团队。  
+Developers and teams working with READMEs, technical plans, product docs, and meeting notes.
 
 ## 运行演示
 
@@ -126,3 +133,16 @@ git push origin main v3.5
 ## License
 
 本项目基于 MIT License 开源，详见 [LICENSE](LICENSE)。
+
+## 作者与 HRouter · About the author
+
+我是 **honestTai**，开发工具，也运营 [HRouter](https://hrouter.net/home)。这里持续分享实用代码、AI 应用、Skills 与插件，把工作中的需求变成可复用的项目。  
+I’m **honestTai**, the developer and operator behind HRouter. I share practical code, AI apps, skills, and plugins built around real workflows.
+
+本项目本身无需接入 HRouter。如果你也使用 AI 编程工具，欢迎了解我运营的 HRouter 模型路由服务。  
+This project does not require HRouter. If you also work with AI coding tools, explore my HRouter model-routing service.
+
+[了解 HRouter · Explore HRouter](https://hrouter.net/home) · [发现更多项目 · More projects](https://github.com/honestTai)
+
+**觉得有用，欢迎 Star；有想法，欢迎到 Issues 交流。**  
+**Star the project if it helps, and share your ideas in Issues.**
