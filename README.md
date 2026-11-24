@@ -11,7 +11,7 @@ Open a local folder, search and read your docs, make light edits, and export to 
 
 **Who it’s for:** Developers and teams working with READMEs, technical plans, product docs, and meeting notes.
 
-[App releases](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/home)
+[App releases](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/)
 
 **[Quick start](#-quick-start) · [Features](#-features) · [Docs](#-docs) · [License](#-license)**
 
@@ -23,7 +23,7 @@ Open a local folder, search and read your docs, make light edits, and export to 
 
 | Sponsor | What it is |
 | :--- | :--- |
-| [![HRouter](docs/assets/hrouter-sponsor.svg)](https://hrouter.net/home) | **[HRouter](https://hrouter.net/home)**: model access, API key management, and usage tracking for AI coding and application development. Also operated by the maintainer. |
+| [![HRouter](docs/assets/hrouter-sponsor.svg)](https://hrouter.net/) | **[HRouter](https://hrouter.net/)**: pay-as-you-go AI coding API gateway — one API key for **Claude, OpenAI Codex / GPT, Google Gemini & DeepSeek** with live [Models & 24h Status](https://hrouter.net/models/), native setup for [Claude Code](https://hrouter.net/docs/claude-code/), [Codex CLI](https://hrouter.net/docs/codex/), [Gemini CLI](https://hrouter.net/docs/gemini-cli/) & [DeepSeek](https://hrouter.net/docs/deepseek/). Also operated by the maintainer. |
 
 ## 🚀 Quick start
 
@@ -98,6 +98,6 @@ This project is open-sourced under the MIT License. See [LICENSE](LICENSE).
 
 <div align="center">
 
-Made by **[honestTai](https://github.com/honestTai)** · [HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
+Made by **[honestTai](https://github.com/honestTai)** · [HRouter](https://hrouter.net/) · [More projects](https://github.com/honestTai)
 
 </div>
