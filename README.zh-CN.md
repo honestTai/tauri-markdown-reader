@@ -11,7 +11,7 @@
 
 **适合谁：** 经常阅读 README、技术方案、产品文档与会议笔记的开发者和团队。
 
-[下载应用](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/home)
+[下载应用](https://github.com/honestTai/tauri-markdown-reader/releases) · [GitHub](https://github.com/honestTai/tauri-markdown-reader) · [HRouter](https://hrouter.net/)
 
 **[快速开始](#-快速开始) · [功能](#-功能) · [文档](#-文档) · [License](#-license)**
 
@@ -23,7 +23,7 @@
 
 | 赞助商 | 简介 |
 | :--- | :--- |
-| [![HRouter](docs/assets/hrouter-sponsor.svg)](https://hrouter.net/home) | **[HRouter](https://hrouter.net/home)**：面向 AI 编程与应用开发的模型接入、API Key 管理与用量统计，也由作者运营。 |
+| [![HRouter](docs/assets/hrouter-sponsor.svg)](https://hrouter.net/) | **[HRouter](https://hrouter.net/)**：面向开发者的 AI 编程模型按量计费网关 —— 一把 API Key 直连 **Claude、OpenAI Codex / GPT、Google Gemini、DeepSeek**，零月费订阅，提供 [模型价格与 24h 实时状态](https://hrouter.net/models/)，一键接入 [Claude Code](https://hrouter.net/docs/claude-code/)、[Codex CLI](https://hrouter.net/docs/codex/)、[Gemini CLI](https://hrouter.net/docs/gemini-cli/) 与 [DeepSeek](https://hrouter.net/docs/deepseek/)。 |
 
 ## 🚀 快速开始
 
@@ -98,6 +98,6 @@ V3 不再保留内置终端。真实终端在 Tauri WebView2/xterm 渲染链上�
 
 <div align="center">
 
-Made by **[honestTai](https://github.com/honestTai)** · [HRouter](https://hrouter.net/home) · [More projects](https://github.com/honestTai)
+Made by **[honestTai](https://github.com/honestTai)** · [HRouter](https://hrouter.net/) · [More projects](https://github.com/honestTai)
 
 </div>
